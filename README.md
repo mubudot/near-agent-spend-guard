@@ -70,7 +70,7 @@ from the repository root. No account, key, or API token is needed.
    cargo test
    ```
 
-   → See `test result: ok. 25 passed; 0 failed`. Tests cover allowlists, caps, UTC rollover,
+   → See `test result: ok. 26 passed; 0 failed`. Tests cover allowlists, caps, UTC rollover,
    approvals, rejection, expiry, pause, authorization, private initialization, callback
    rollback, reservations, the 16 KiB receipt log limit at maximum pending requests,
    stale-transfer cleanup, and bounded audit logs.
@@ -119,10 +119,11 @@ from the repository root. No account, key, or API token is needed.
    ```
 
    → The first run downloads the official nearcore **2.14.0** sandbox (the release mainnet
-   and testnet run; ~50 MB) into the ignored `.tmp/` directory. See `pass 8` and `fail 0`
-   (1 test with 7 on-chain subtests): atomic deploy + private `new`, a third party unable to
+   and testnet run; ~50 MB) into the ignored `.tmp/` directory. See `pass 9` and `fail 0`
+   (1 test with 8 on-chain subtests): atomic deploy + private `new`, a third party unable to
    initialize, a transfer, reserve/reject/approve, a real failed-transfer callback rollback,
-   the callback's measured gas, owner/allowlist/cap/pause errors, and a function-call key
+   the callback's measured gas (also at maximum bounded state: 32 agents × 32 allowlist
+   entries, 64 pending requests, full audit ring), owner/allowlist/cap/pause errors, and a function-call key
    that can call `spend` but cannot administer or transfer. The diagnostics print the
    sandbox version and `on_transfer gas_burnt`.
 

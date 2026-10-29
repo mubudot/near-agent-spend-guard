@@ -43,7 +43,7 @@ async function sandboxBinary(temp) {
   return binary;
 }
 
-test('sandbox: transfers, reservations, approvals, rollback and restricted access key', { timeout: 180_000 }, async (t) => {
+test('sandbox: transfers, reservations, approvals, rollback and restricted access key', { timeout: 400_000 }, async (t) => {
   // No public RPC endpoints. Sandbox keys and chain data remain inside the repository.
   const temp = resolve('.tmp/integration');
   await mkdir(temp, { recursive: true });
@@ -161,6 +161,44 @@ test('sandbox: transfers, reservations, approvals, rollback and restricted acces
       await spend(shop.accountId, 1n, key);
       await assert.rejects(agent.call(guard, 'pause', {}, { signWithKey: key }));
       await assert.rejects(agent.batch(shop).transfer(ONE / 10n).transact(key));
+    });
+    await t.test('callback and approval fit their gas at maximum bounded state', async () => {
+      // 32 agents with 32-entry allowlists, 64 pending requests, a full 128-entry audit ring.
+      const TG = 1_000_000_000_000n;
+      const allow = (n) => Array.from({ length: 32 }, (_, i) => (i === 0 ? shop.accountId : `${n}${String(i).padStart(2, '0')}${'z'.repeat(48)}.test.near`));
+      const big = { per_tx_max: ONE.toString(), daily_max: (100n * ONE).toString(), approval_threshold: '0', paused: false };
+      const bulk = await root.createSubAccount('bulk');
+      for (let start = 0; start < 31; start += 8) {
+        let tx = root.batch(guard);
+        for (let i = start; i < Math.min(start + 8, 31); i += 1) {
+          const id = i === 0 ? bulk.accountId : `a${i}.test.near`;
+          tx = tx.functionCall('add_agent', { agent: id, policy: { ...big, allowlist: allow(String(i).padStart(3, '0')) } }, { gas: 30n * TG });
+        }
+        await tx.transact();
+      }
+      const pendingNow = (await guard.view('list_pending')).length;
+      for (let n = pendingNow; n < 64; n += 8) {
+        let tx = bulk.batch(guard);
+        for (let i = n; i < Math.min(n + 8, 64); i += 1) {
+          tx = tx.functionCall('spend', { receiver: shop.accountId, amount: (ONE / 100n).toString(), memo: 'm'.repeat(256) }, { gas: 30n * TG });
+        }
+        await tx.transact();
+      }
+      const pendingList = await guard.view('list_pending');
+      assert.equal(pendingList.length, 64);
+      assert.equal((await guard.view('get_audit', { from: '0', limit: 128 })).length, 128);
+      const request = pendingList.find((r) => r.agent === bulk.accountId);
+      const result = await root.callRaw(guard, 'approve', { request_id: request.id }, { gas: GAS });
+      const outcomes = result.result.receipts_outcome;
+      const callback = outcomes.find((r) => r.outcome.logs.some((l) => l.includes('"transfer_succeeded"')));
+      assert.ok(callback, 'callback receipt found');
+      const approveBurnt = BigInt(outcomes[0].outcome.gas_burnt);
+      const callbackBurnt = BigInt(callback.outcome.gas_burnt);
+      t.diagnostic(`max state: approve ${Number(approveBurnt) / 1e12} Tgas, on_transfer ${Number(callbackBurnt) / 1e12} Tgas (budget 30)`);
+      assert.ok(callbackBurnt < 20n * TG, `callback used ${callbackBurnt}`);
+      assert.deepEqual(await guard.view('list_transfers'), []);
+      await root.call(guard, 'remove_agent', { agent: bulk.accountId }, { gas: GAS });
+      assert.equal((await guard.view('list_pending')).length, 0);
     });
   } finally {
     await worker.tearDown();

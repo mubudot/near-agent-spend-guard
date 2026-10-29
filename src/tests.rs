@@ -361,3 +361,13 @@ fn approve_after_removal_and_daily_cap_reduction() {
     c.remove_agent(id("agent.test.near"));
     fails(|| { c.approve(r); }, "E_REQUEST");
 }
+
+#[test]
+fn approval_fails_daily_after_daily_cap_reduction() {
+    let mut c = setup(); let a = pending(&mut c, 60); pending(&mut c, 60);
+    context("owner.test.near", 1);
+    let mut p = policy(); p.daily_max = U128(100); c.update_policy(id("agent.test.near"), p);
+    fails(|| { c.approve(a); }, "E_DAILY");
+    c.reject(a);
+    assert_eq!(c.get_spent_today(id("agent.test.near")).0, 60);
+}
