@@ -1,5 +1,49 @@
 # Phase 1 status
 
+## Sandbox integration run — 2026-10-30 (x86_64 VPS)
+
+Host: rented x86_64 VPS, Ubuntu 24.04, x86_64, 8 vCPU, `nofile` hard limit
+204800 (`ulimit -n 65535` set). Rust 1.99.1 + `wasm32-unknown-unknown` (rustup),
+Node.js 24.11.1, npm 11.6.2. Repo copied as a git bundle of `015ccb7`; the copy and
+the sandbox binary were deleted from the VPS afterwards.
+
+| Check | Result |
+| --- | --- |
+| `cargo test` (contract unit) | **20 passed, 0 failed** |
+| `npm test` (parser) | **12 passed, 0 failed** |
+| Offline demo / invalid mainnet receiver | Expected `spend` JSON / exit code 1 |
+| `cargo build --locked --target wasm32-unknown-unknown --release` | Passed |
+| `SPEND_GUARD_SANDBOX_BIN=<neard 2.13.4 x86_64 sandbox> npm run test:integration` | **6 passed (1 test + 5 on-chain subtests), 0 failed, 0 skipped** |
+| `npm run test:integration` with near-workspaces' bundled sandbox (neard 2.6.2) | **Fails**: deploy succeeds but `new` returns `CompilationError: PrepareError: Deserialization` |
+
+Total on the VPS: **38 passed, 0 failed**. Sandbox binary used:
+`https://s3-us-west-1.amazonaws.com/build.nearprotocol.com/nearcore/Linux-x86_64/2.13.4/near-sandbox.tar.gz`.
+
+Command that passes:
+
+```bash
+ulimit -n 65535
+SPEND_GUARD_SANDBOX_BIN=/path/to/Linux-x86_64/near-sandbox npm run test:integration
+```
+
+Findings and fixes (test harness only; no contract changes needed):
+
+1. **Bundled sandbox too old for the WASM.** WASM built by Rust 1.99 uses WASM features
+   neard 2.6.2 (bundled by near-workspaces 5.0.0) cannot parse. Use a neard ≥ 2.13.4
+   sandbox via `SPEND_GUARD_SANDBOX_BIN`. Not fixed in code; a testnet deploy should
+   be checked against the current testnet protocol (or built with cargo-near) in phase 2.
+2. **Stale chain dir → `EISDIR`.** near-workspaces' cleanup uses a non-recursive `rm`,
+   so after a failed run the next `Worker.init` failed. The test now clears
+   `.tmp/integration/chain` recursively before init and after teardown (`rm: false`).
+3. **Restricted-key allowance too small in the sandbox.** Sandbox gas price is 10x
+   testnet's, so 100 Tgas prepaid costs ~0.101 NEAR of allowance, more than the
+   0.1 NEAR key. The test key allowance is now 0.5 NEAR. The testnet demo's 0.1 NEAR
+   allowance (`demo/install-key.mjs`) is left as is (~0.01 NEAR per call at testnet gas price).
+
+---
+
+## Earlier local validation (2026-10-29, ARM64 container)
+
 Validated locally on 2026-10-29. Phase 1 implementation and documentation are
 complete; sandbox execution remains blocked by this container's limits. No source
 fixes were needed: the existing Rust unit tests passed.
@@ -78,7 +122,7 @@ that integration run.
 
 ## Open work
 
-1. Run the sandbox integration test on a compatible host; it could not execute here.
+1. ~~Run the sandbox integration test on a compatible host~~ done 2026-10-30 on x86_64 VPS (see top).
 2. Phase 2: testnet deployment, funding, owner policy setup, restricted-key
    provisioning, and live demo submission. None of these steps ran in phase 1.
 3. Independent security review and production hardening remain outside phase 1.

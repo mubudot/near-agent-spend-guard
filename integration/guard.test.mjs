@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { access, mkdir } from 'node:fs/promises';
+import { access, mkdir, rm } from 'node:fs/promises';
 import { resolve, dirname, join } from 'node:path';
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
@@ -40,7 +40,11 @@ test('sandbox: transfers, reservations, approvals, rollback and restricted acces
   await access(wasm);
   const { Worker } = await import('near-workspaces');
   const { KeyPair, transactions } = await import('near-api-js');
-  const worker = await Worker.init({ network: 'sandbox', homeDir: join(temp, 'chain'), rm: true });
+  // near-workspaces' own cleanup uses a non-recursive rm and leaves chain data behind
+  // after a failed run, which makes the next Worker.init fail with EISDIR. Clear it here.
+  const homeDir = join(temp, 'chain');
+  await rm(homeDir, { recursive: true, force: true });
+  const worker = await Worker.init({ network: 'sandbox', homeDir, rm: false });
   try {
     const root = worker.rootAccount;
     const guard = await root.createSubAccount('guard', { initialBalance: 20n * ONE });
@@ -98,12 +102,15 @@ test('sandbox: transfers, reservations, approvals, rollback and restricted acces
     });
     await t.test('actual function-call key can spend but cannot administer or transfer', async () => {
       const key = KeyPair.fromRandom('ed25519');
-      await agent.batch(agent).addKey(key.getPublicKey(), transactions.functionCallAccessKey(guard.accountId, ['spend'], ONE / 10n)).transact();
+      // Sandbox gas price is 10x testnet's, so 100 Tgas of prepaid gas costs ~0.101 NEAR of
+      // allowance here; 0.1 NEAR (the testnet demo value) is exhausted before the first call.
+      await agent.batch(agent).addKey(key.getPublicKey(), transactions.functionCallAccessKey(guard.accountId, ['spend'], ONE / 2n)).transact();
       await spend(shop.accountId, 1n, key);
       await assert.rejects(agent.call(guard, 'pause', {}, { signWithKey: key }));
       await assert.rejects(agent.batch(shop).transfer(ONE / 10n).transact(key));
     });
   } finally {
     await worker.tearDown();
+    await rm(homeDir, { recursive: true, force: true });
   }
 });
