@@ -37,6 +37,16 @@ No critical/high/medium issues. Two low notes: REVIEW_LOG.md was not yet written
 (this file), and the gas test did not cover maximum state. The maximum-state subtest was
 added in response, and it exposed the real gas risk recorded under F3.
 
+### 3b. Codex re-review (round 3, after the 50 Tgas change) — verdict `ship`
+
+| ID | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| R3-1 | low | The "maximum state" fixture had 994 allowlist entries (original agent kept 2). | **Fixed**: all 32 agents now have 32 entries (1,024); docs say "maximum occupancy". |
+| R3-2 | low | An immediate-transfer `spend` at that state (50 Tgas reserved) was not measured. | **Fixed**: subtest runs it at 100 Tgas, asserts every receipt succeeded and the receiver got paid, and prints its gas: measured `spend` **20.0 Tgas** + its `on_transfer` **19.2 Tgas**; `approve` 19.9 + 19.3 Tgas (fresh-clone run). The 16-request expiry sweep inside `spend` needs a UTC midnight and is not measured on chain; README suggests 150 Tgas as conservative headroom. |
+| R3-3 | low | README said every spend reserves 50 Tgas; pending spends schedule no callback. | **Fixed** wording. |
+
+Stopped here: the maximum of two re-review rounds after the first review was reached.
+
 ### 4. Privacy scan
 
 Tracked files and full git history were scanned for the author's private email and
@@ -50,4 +60,5 @@ earlier commit contains them. The only identity left is the pseudonymous Git aut
 ### 5. Final results (fresh clone, README only, clean x86_64 host)
 
 See [STATUS.md](../STATUS.md): `cargo test` 26/26, `npm test` 13/13,
-`npm run test:integration` 9/9 (1 test + 8 on-chain subtests) on nearcore 2.14.0, twice.
+`npm run test:integration` 9/9 (1 test + 8 on-chain subtests) on nearcore 2.14.0, twice
+(second run with the cached sandbox and a leftover chain directory).
