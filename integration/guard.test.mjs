@@ -187,6 +187,8 @@ test('sandbox: transfers, reservations, approvals, rollback and restricted acces
       const pendingList = await guard.view('list_pending');
       assert.equal(pendingList.length, 64);
       assert.equal((await guard.view('get_audit', { from: '0', limit: 128 })).length, 128);
+      // Fill the original agent's allowlist too: 32 x 32 = 1,024 entries in total.
+      await root.call(guard, 'update_policy', { agent: agent.accountId, policy: { ...policy, allowlist: allow('zzz') } });
       const request = pendingList.find((r) => r.agent === bulk.accountId);
       const result = await root.callRaw(guard, 'approve', { request_id: request.id }, { gas: GAS });
       const outcomes = result.result.receipts_outcome;
@@ -196,6 +198,18 @@ test('sandbox: transfers, reservations, approvals, rollback and restricted acces
       const callbackBurnt = BigInt(callback.outcome.gas_burnt);
       t.diagnostic(`max state: approve ${Number(approveBurnt) / 1e12} Tgas, on_transfer ${Number(callbackBurnt) / 1e12} Tgas (budget 50)`);
       assert.ok(callbackBurnt < 30n * TG, `callback used ${callbackBurnt}`);
+      assert.deepEqual(await guard.view('list_transfers'), []);
+      // An immediate-transfer spend at this state, with 100 Tgas prepaid and 50 reserved.
+      await root.call(guard, 'update_policy', { agent: bulk.accountId, policy: { ...big, approval_threshold: ONE.toString(), allowlist: allow('000') } });
+      const before = BigInt((await shop.balance()).total);
+      const direct = await bulk.callRaw(guard, 'spend', { receiver: shop.accountId, amount: '1', memo: 'm'.repeat(256) }, { gas: GAS });
+      const failures = direct.result.receipts_outcome.filter((r) => r.outcome.status.Failure);
+      assert.deepEqual(failures, [], 'all receipts succeed');
+      assert.equal(BigInt((await shop.balance()).total) - before, 1n);
+      const spendBurnt = BigInt(direct.result.receipts_outcome[0].outcome.gas_burnt);
+      const spendCallback = direct.result.receipts_outcome.find((r) => r.outcome.logs.some((l) => l.includes('"transfer_succeeded"')));
+      assert.ok(spendCallback, 'spend callback receipt found');
+      t.diagnostic(`max state: spend ${Number(spendBurnt) / 1e12} Tgas, its on_transfer ${Number(BigInt(spendCallback.outcome.gas_burnt)) / 1e12} Tgas`);
       assert.deepEqual(await guard.view('list_transfers'), []);
       await root.call(guard, 'remove_agent', { agent: bulk.accountId }, { gas: GAS });
       assert.equal((await guard.view('list_pending')).length, 0);

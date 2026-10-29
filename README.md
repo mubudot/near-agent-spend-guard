@@ -122,8 +122,8 @@ from the repository root. No account, key, or API token is needed.
    and testnet run; ~36 MB download) into the ignored `.tmp/` directory. See `pass 9` and `fail 0`
    (1 test with 8 on-chain subtests): atomic deploy + private `new`, a third party unable to
    initialize, a transfer, reserve/reject/approve, a real failed-transfer callback rollback,
-   the callback's measured gas (also at maximum bounded state: 32 agents × 32 allowlist
-   entries, 64 pending requests, full audit ring), owner/allowlist/cap/pause errors, and a function-call key
+   the callback's measured gas (also at maximum occupancy: 32 agents × 32 allowlist
+   entries, 64 pending requests, full audit ring, for `approve` and an immediate `spend`), owner/allowlist/cap/pause errors, and a function-call key
    that can call `spend` but cannot administer or transfer. The diagnostics print the
    sandbox version and `on_transfer gas_burnt`.
 
@@ -138,8 +138,10 @@ from the repository root. No account, key, or API token is needed.
 `new` is `#[private]`: deploy and initialize in **one batch transaction signed by the
 contract account** (DeployContract + FunctionCall `new {"owner": "<owner>.testnet"}`), so
 nobody can front-run initialization. The integration test does exactly this.
-Attach 100 Tgas to `spend` and `approve`: each reserves 50 Tgas for the `on_transfer`
-callback, which the integration test measures at ~19 Tgas at maximum bounded state.
+Attach 100 Tgas to `spend` and `approve`. Immediate-transfer spends and approvals reserve
+50 Tgas for the `on_transfer` callback (pending spends schedule none). The integration test
+measures the callback at ~19 Tgas in its maximum-occupancy configuration. The expiry sweep
+(up to 16 requests) inside `spend` is not measured on chain; 150 Tgas is a conservative choice.
 
 ## Scope and next phase
 
