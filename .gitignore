@@ -9,3 +9,4 @@
 !/.env.example
 /codex_phase1.log
 *.log
+/codex_*

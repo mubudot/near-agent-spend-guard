@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { access, mkdir, rm } from 'node:fs/promises';
+import { access, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { resolve, dirname, join } from 'node:path';
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
@@ -8,14 +8,50 @@ import { spawnSync } from 'node:child_process';
 const require = createRequire(import.meta.url);
 const ONE = 10n ** 24n;
 const GAS = 100_000_000_000_000n;
+// near-workspaces 5.0.0 bundles neard 2.6.2, which rejects WASM from current Rust
+// (PrepareError: Deserialization). Use the nearcore release that mainnet/testnet run.
+const SANDBOX_VERSION = '2.14.0';
+const PLATFORMS = { 'linux-x64': 'Linux-x86_64', 'linux-arm64': 'Linux-aarch64', 'darwin-arm64': 'Darwin-arm64', 'darwin-x64': 'Darwin-x86_64' };
+
+async function findFile(dir, name) {
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isFile() && entry.name === name) return path;
+    if (entry.isDirectory()) { const hit = await findFile(path, name); if (hit) return hit; }
+  }
+  return null;
+}
+
+// Downloads the official nearcore sandbox build once into the ignored .tmp/ directory.
+async function sandboxBinary(temp) {
+  const platform = PLATFORMS[`${process.platform}-${process.arch}`];
+  if (!platform) throw new Error(`No official sandbox build for ${process.platform}-${process.arch}; set SPEND_GUARD_SANDBOX_BIN`);
+  const dir = join(temp, '..', 'sandbox', SANDBOX_VERSION);
+  const cached = await findFile(dir, 'near-sandbox').catch(() => null);
+  if (cached) return cached;
+  await mkdir(dir, { recursive: true });
+  const url = `https://s3-us-west-1.amazonaws.com/build.nearprotocol.com/nearcore/${platform}/${SANDBOX_VERSION}/near-sandbox.tar.gz`;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Sandbox download failed: ${response.status} ${url}`);
+  const archive = join(dir, 'near-sandbox.tar.gz');
+  await writeFile(archive, Buffer.from(await response.arrayBuffer()));
+  const untar = spawnSync('tar', ['-xzf', archive, '-C', dir], { encoding: 'utf8' });
+  if (untar.status !== 0) throw new Error(`Sandbox extraction failed: ${untar.stderr}`);
+  await rm(archive);
+  const binary = await findFile(dir, 'near-sandbox');
+  if (!binary) throw new Error('near-sandbox binary missing from archive');
+  return binary;
+}
 
 test('sandbox: transfers, reservations, approvals, rollback and restricted access key', { timeout: 180_000 }, async (t) => {
   // No public RPC endpoints. Sandbox keys and chain data remain inside the repository.
   const temp = resolve('.tmp/integration');
   await mkdir(temp, { recursive: true });
   process.env.TMPDIR = temp;
-  const binary = process.env.SPEND_GUARD_SANDBOX_BIN;
-  if (binary) {
+  const wasm = resolve('target/wasm32-unknown-unknown/release/near_agent_spend_guard.wasm');
+  await access(wasm).catch(() => { throw new Error('Build the contract first: cargo build --locked --target wasm32-unknown-unknown --release'); });
+  const binary = process.env.SPEND_GUARD_SANDBOX_BIN || await sandboxBinary(temp);
+  {
     await access(binary);
     const preflight = spawnSync(binary, ['--version'], { encoding: 'utf8', timeout: 15_000 });
     if (preflight.status !== 0) {
@@ -25,19 +61,14 @@ test('sandbox: transfers, reservations, approvals, rollback and restricted acces
       }
       throw new Error(`Sandbox preflight failed: ${preflight.error?.message ?? preflight.stderr}`);
     }
-    // near-workspaces 5's bundled downloader predates Linux ARM support. Its exported
-    // binary factory lets us use a locally installed, newer official sandbox binary.
+    // Replace near-workspaces' bundled (too old) sandbox through its exported binary factory.
     const utils = require(join(dirname(require.resolve('near-workspaces')), 'internal-utils.js'));
     utils.sandboxBinary = async () => ({ binPath: binary, exists: async () => true });
-  } else if (process.platform === 'linux' && process.arch === 'arm64') {
-    t.skip('near-workspaces bundled downloader does not support Linux ARM64; set SPEND_GUARD_SANDBOX_BIN to an official ARM binary');
-    return;
+    t.diagnostic(`sandbox: ${spawnSync(binary, ['--version'], { encoding: 'utf8' }).stdout.trim()}`);
   }
   // Avoid the old downloader's ~/.near default on supported hosts as well.
   process.env.NEAR_SANDBOX_BIN_PATH = temp;
   process.env.NEAR_SANDBOX_BINARY_PATH = temp;
-  const wasm = resolve('target/wasm32-unknown-unknown/release/near_agent_spend_guard.wasm');
-  await access(wasm);
   const { Worker } = await import('near-workspaces');
   const { KeyPair, transactions } = await import('near-api-js');
   // near-workspaces' own cleanup uses a non-recursive rm and leaves chain data behind
@@ -52,8 +83,10 @@ test('sandbox: transfers, reservations, approvals, rollback and restricted acces
     const shop = await root.createSubAccount('shop');
     const stranger = await root.createSubAccount('stranger');
     const missing = `missing.${root.accountId}`;
-    await guard.deploy(wasm);
-    await root.call(guard, 'new', { owner: root.accountId });
+    const code = await readFile(wasm);
+    // Deploy and initialize atomically, signed by the contract account (new is private).
+    await guard.batch(guard).deployContract(code).functionCall('new', { owner: root.accountId }, { gas: GAS }).transact();
+    assert.equal(await guard.view('get_owner'), root.accountId);
     const policy = {
       per_tx_max: (ONE / 2n).toString(), daily_max: (2n * ONE).toString(),
       approval_threshold: (ONE / 5n).toString(), allowlist: [shop.accountId, missing], paused: false,
@@ -63,6 +96,12 @@ test('sandbox: transfers, reservations, approvals, rollback and restricted acces
       receiver, amount: amount.toString(), memo: 'sandbox',
     }, { gas: GAS, signWithKey });
     const spent = () => guard.view('get_spent_today', { agent: agent.accountId });
+    await t.test('a third party cannot initialize an undeployed-and-uninitialized guard', async () => {
+      const bare = await root.createSubAccount('bare', { initialBalance: 5n * ONE });
+      await bare.deploy(wasm);
+      await assert.rejects(stranger.call(bare, 'new', { owner: stranger.accountId }), /private|E_PRIVATE/);
+      await assert.rejects(root.call(bare, 'new', { owner: root.accountId }), /private|E_PRIVATE/);
+    });
     await t.test('successful transfer reaches allowlisted receiver', async () => {
       const before = BigInt((await shop.balance()).total);
       await spend(shop.accountId, ONE / 10n);
@@ -90,6 +129,18 @@ test('sandbox: transfers, reservations, approvals, rollback and restricted acces
       assert.equal(await spent(), before);
       const audit = await guard.view('get_audit', { from: '0', limit: 128 });
       assert.ok(audit.some((e) => e.event === 'transfer_failed'));
+    });
+    await t.test('on_transfer callback fits its gas budget with a full allowlist', async () => {
+      const longIds = Array.from({ length: 30 }, (_, i) => `${String(i).padStart(2, '0')}${'x'.repeat(51)}.test.near`);
+      await root.call(guard, 'update_policy', { agent: agent.accountId, policy: { ...policy, allowlist: [shop.accountId, missing, ...longIds] } });
+      const result = await agent.callRaw(guard, 'spend', { receiver: shop.accountId, amount: '1', memo: 'm'.repeat(256) }, { gas: GAS });
+      const callback = result.result.receipts_outcome.find((r) => r.outcome.logs.some((l) => l.includes('"transfer_succeeded"')));
+      assert.ok(callback, 'callback receipt found');
+      const burnt = BigInt(callback.outcome.gas_burnt);
+      t.diagnostic(`on_transfer gas_burnt: ${Number(burnt) / 1e12} Tgas (budget 30 Tgas)`);
+      assert.ok(burnt < 15_000_000_000_000n, `callback used ${burnt}`);
+      assert.deepEqual(await guard.view('list_transfers'), []);
+      await root.call(guard, 'update_policy', { agent: agent.accountId, policy });
     });
     await t.test('owner, allowlist, caps and pause enforced on chain', async () => {
       await assert.rejects(stranger.call(guard, 'pause', {}), /E_OWNER/);

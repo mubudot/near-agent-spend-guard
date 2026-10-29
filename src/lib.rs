@@ -11,7 +11,9 @@ const MAX_PENDING: usize = 64;
 const MAX_TRANSFERS: usize = 64;
 const MAX_AUDIT: usize = 128;
 const MAX_MEMO: usize = 256;
-const CALLBACK_GAS: Gas = Gas::from_tgas(15);
+const MAX_SWEEP: usize = 16;
+// Measured in the sandbox integration test; leaves headroom for maximum bounded state.
+const CALLBACK_GAS: Gas = Gas::from_tgas(30);
 
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug)]
 #[serde(crate = "near_sdk::serde")]
@@ -85,9 +87,12 @@ pub struct SpendGuard {
 
 #[near]
 impl SpendGuard {
+    /// Only the contract account can initialize, so deploy and `new` must be one batch
+    /// transaction signed by the contract account. A third party cannot front-run it.
     #[init]
+    #[private]
     pub fn new(owner: AccountId) -> Self {
-        assert_eq!(env::predecessor_account_id(), owner, "E_OWNER");
+        assert_eq!(env::predecessor_account_id(), env::current_account_id(), "E_PRIVATE");
         assert_ne!(owner, env::current_account_id(), "E_OWNER_IS_CONTRACT");
         Self {
             owner, paused: false, agents: BTreeMap::new(), pending: BTreeMap::new(),
@@ -118,10 +123,15 @@ impl SpendGuard {
     pub fn remove_agent(&mut self, agent: AccountId) {
         self.assert_owner();
         assert!(self.agents.contains_key(&agent), "E_NOT_AGENT");
+        // One aggregate event keeps removal within the receipt log limit at 64 pending requests.
         let ids: Vec<_> = self.pending.values().filter(|r| r.agent == agent).map(|r| r.id.0).collect();
-        for id in ids { self.release_request(id, "cancelled"); }
+        let mut cancelled = 0u128;
+        for id in &ids { cancelled += self.take_request(*id).amount.0; }
         self.agents.remove(&agent);
-        self.record("agent_removed", [("agent", agent.to_string())]);
+        self.record("agent_removed", [
+            ("agent", agent.to_string()), ("cancelled_requests", ids.len().to_string()),
+            ("cancelled_amount", cancelled.to_string()),
+        ]);
     }
 
     pub fn pause(&mut self) { self.assert_owner(); self.paused = true; self.record("paused", []); }
@@ -176,7 +186,7 @@ impl SpendGuard {
         assert!(self.transfers.len() < MAX_TRANSFERS, "E_TRANSFER_LIMIT");
         self.ensure_liquid(0);
         self.pending.remove(&request_id.0);
-        self.reserved -= r.amount.0;
+        self.reserved = self.reserved.checked_sub(r.amount.0).expect("E_ACCOUNTING");
         self.record("approved", [("request_id", request_id.0.to_string())]);
         self.transfer(r.id.0, r.agent, r.receiver, r.amount.0, r.generation.0, r.day.0);
         request_id
@@ -218,6 +228,18 @@ impl SpendGuard {
         success
     }
 
+    /// Frees a transfer slot whose callback never completed (for example, it ran out of gas).
+    /// Only entries from a previous UTC day qualify; the daily charge is not refunded because the
+    /// payment outcome is unknown, and that day's budget no longer applies anyway.
+    pub fn clear_stale_transfer(&mut self, transfer_id: U64) {
+        self.assert_owner();
+        let t = self.transfers.get(&transfer_id.0).expect("E_TRANSFER");
+        assert!(t.day < Self::day(), "E_NOT_STALE");
+        self.transfers.remove(&transfer_id.0);
+        self.record("transfer_cleared", [("transfer_id", transfer_id.0.to_string())]);
+    }
+
+    pub fn list_transfers(&self) -> Vec<U64> { self.transfers.keys().map(|k| U64(*k)).collect() }
     pub fn get_owner(&self) -> AccountId { self.owner.clone() }
     pub fn is_paused(&self) -> bool { self.paused }
     pub fn get_policy(&self, agent: AccountId) -> Option<Policy> { self.agents.get(&agent).map(|a| a.policy.clone()) }
@@ -281,14 +303,21 @@ impl SpendGuard {
             if a.generation == generation && a.day == day { a.spent = a.spent.checked_sub(amount).expect("E_ACCOUNTING"); }
         }
     }
-    fn release_request(&mut self, id: u64, event: &str) {
+    fn take_request(&mut self, id: u64) -> Request {
         let r = self.pending.remove(&id).expect("E_REQUEST");
-        self.reserved -= r.amount.0;
+        self.reserved = self.reserved.checked_sub(r.amount.0).expect("E_ACCOUNTING");
         self.rollback(&r.agent, r.generation.0, r.day.0, r.amount.0);
+        r
+    }
+    fn release_request(&mut self, id: u64, event: &str) {
+        let r = self.take_request(id);
         self.record(event, [("request_id", id.to_string()), ("agent", r.agent.to_string()), ("amount", r.amount.0.to_string())]);
     }
     fn sweep_expired(&mut self) {
-        let ids: Vec<_> = self.pending.values().filter(|r| r.expires_at.0 <= env::block_timestamp()).map(|r| r.id.0).collect();
+        // Bounded per call so the per-request events stay within the receipt log limit;
+        // anyone can call expire() for the rest.
+        let ids: Vec<_> = self.pending.values().filter(|r| r.expires_at.0 <= env::block_timestamp())
+            .map(|r| r.id.0).take(MAX_SWEEP).collect();
         for id in ids { self.release_request(id, "expired"); }
     }
     fn record<const N: usize>(&mut self, event: &str, fields: [(&str, String); N]) {

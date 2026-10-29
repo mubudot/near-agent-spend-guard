@@ -22,3 +22,16 @@ export function testnetAccount(value, name) {
   }
   return value;
 }
+
+// Accepting a spend is not the same as paying: the transfer runs in a later receipt and
+// can fail. Read the contract's own audit events from the final execution outcome.
+export function summarizeOutcome(result) {
+  const events = (result?.receipts_outcome ?? []).flatMap((r) => r.outcome?.logs ?? [])
+    .filter((l) => l.startsWith('EVENT_JSON:'))
+    .map((l) => { try { return JSON.parse(l.slice('EVENT_JSON:'.length)); } catch { return null; } })
+    .filter((e) => e?.standard === 'agent_spend_guard').map((e) => e.event);
+  if (events.includes('pending')) return { accepted: true, payment: 'awaiting_owner_approval' };
+  if (events.includes('transfer_succeeded')) return { accepted: true, payment: 'completed' };
+  if (events.includes('transfer_failed')) return { accepted: true, payment: 'failed' };
+  return { accepted: events.includes('spend_requested'), payment: 'unknown' };
+}

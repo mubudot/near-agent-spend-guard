@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseRequest, testnetAccount } from './parse.mjs';
+import { parseRequest, summarizeOutcome, testnetAccount } from './parse.mjs';
 
 test('offline request produces exact yoctoNEAR and memo', () => {
   assert.deepEqual(parseRequest('send 0.1 NEAR to shop.testnet for coffee'), {
@@ -23,4 +23,13 @@ test('network account validation', () => {
   assert.equal(testnetAccount('agent.testnet', 'agent'), 'agent.testnet');
   assert.throws(() => testnetAccount('agent.near', 'agent'));
   assert.throws(() => testnetAccount(undefined, 'agent'));
+});
+
+const log = (event) => `EVENT_JSON:${JSON.stringify({ standard: 'agent_spend_guard', version: '1.0.0', event, data: [] })}`;
+const outcome = (...events) => ({ receipts_outcome: [{ outcome: { logs: events.map(log) } }] });
+test('outcome summary distinguishes accepted, pending, paid and failed', () => {
+  assert.deepEqual(summarizeOutcome(outcome('spend_requested', 'transfer_succeeded')), { accepted: true, payment: 'completed' });
+  assert.deepEqual(summarizeOutcome(outcome('spend_requested', 'transfer_failed')), { accepted: true, payment: 'failed' });
+  assert.deepEqual(summarizeOutcome(outcome('spend_requested', 'pending')), { accepted: true, payment: 'awaiting_owner_approval' });
+  assert.deepEqual(summarizeOutcome({ receipts_outcome: [{ outcome: { logs: ['EVENT_JSON:{"standard":"other","event":"transfer_succeeded"}', 'noise'] } }] }), { accepted: false, payment: 'unknown' });
 });

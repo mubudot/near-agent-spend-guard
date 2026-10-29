@@ -1,4 +1,4 @@
-import { parseRequest, testnetAccount } from './parse.mjs';
+import { parseRequest, summarizeOutcome, testnetAccount } from './parse.mjs';
 
 try {
   const input = process.argv.slice(2);
@@ -22,7 +22,9 @@ try {
       throw new Error('Agent key must allow only spend on this contract with a finite gas allowance');
     }
     const result = await account.functionCall({ contractId: contract, methodName: 'spend', args, gas: 100_000_000_000_000n, attachedDeposit: 0n });
-    console.log(JSON.stringify({ transaction: result.transaction.hash, status: result.status }, null, 2));
+    const summary = summarizeOutcome(result);
+    console.log(JSON.stringify({ transaction: result.transaction.hash, ...summary }, null, 2));
+    if (summary.payment === 'failed') process.exitCode = 2;
   }
 } catch (error) {
   // Never echo key material or RPC request objects.

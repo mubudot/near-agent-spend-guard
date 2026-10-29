@@ -24,8 +24,9 @@ fn policy() -> Policy {
         allowlist: vec![id("shop.test.near")], approval_threshold: U128(50), paused: false }
 }
 fn setup() -> SpendGuard {
-    context("owner.test.near", 1);
+    context("guard.test.near", 1);
     let mut c = SpendGuard::new(id("owner.test.near"));
+    context("owner.test.near", 1);
     c.add_agent(id("agent.test.near"), policy());
     context("agent.test.near", 1);
     c
@@ -171,7 +172,7 @@ fn all_owner_methods_reject_non_owner() {
     fails(|| c.unpause_agent(id("agent.test.near")), "E_OWNER");
     fails(|| { c.approve(r); }, "E_OWNER"); fails(|| c.reject(r), "E_OWNER");
     fails(|| { c.withdraw(U128(1)); }, "E_OWNER");
-    fails(|| { SpendGuard::new(id("owner.test.near")); }, "E_OWNER");
+    fails(|| { c.clear_stale_transfer(U64(0)); }, "E_OWNER");
 }
 
 #[test]
@@ -272,4 +273,91 @@ fn liquidity_protects_pending_and_storage_from_withdrawal() {
     fails(|| { c.withdraw(U128(available)); }, "E_BALANCE");
     drop(c.withdraw(U128(available - 100)));
     assert_eq!(c.reserved, 100);
+}
+
+#[test]
+fn init_only_by_contract_account() {
+    // Front-running: a stranger (or the owner itself) cannot initialize the contract.
+    context("stranger.test.near", 1);
+    fails(|| { SpendGuard::new(id("stranger.test.near")); }, "E_PRIVATE");
+    context("owner.test.near", 1);
+    fails(|| { SpendGuard::new(id("owner.test.near")); }, "E_PRIVATE");
+    context("guard.test.near", 1);
+    fails(|| { SpendGuard::new(id("guard.test.near")); }, "E_OWNER_IS_CONTRACT");
+    assert_eq!(SpendGuard::new(id("owner.test.near")).get_owner(), id("owner.test.near"));
+}
+
+const LONG_AGENT: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.test.near";
+fn full_pending_with_long_ids() -> SpendGuard {
+    assert_eq!(LONG_AGENT.len(), 64);
+    context("guard.test.near", 1);
+    let mut c = SpendGuard::new(id("owner.test.near"));
+    context("owner.test.near", 1);
+    let shop = "ssssssssssssssssssssssssssssssssssssssssssssssssssssss.test.near";
+    let p = Policy { per_tx_max: U128(10u128.pow(24)), daily_max: U128(10u128.pow(27)),
+        allowlist: vec![id(shop)], approval_threshold: U128(0), paused: false };
+    c.add_agent(id(LONG_AGENT), p);
+    for _ in 0..MAX_PENDING {
+        context(LONG_AGENT, 1);
+        match c.spend(id(shop), U128(10u128.pow(23) + 123_456_789), "m".repeat(MAX_MEMO)) {
+            SpendResult::Pending { .. } => {}, _ => panic!("expected pending"),
+        }
+    }
+    assert_eq!(c.list_pending().len(), MAX_PENDING);
+    c
+}
+
+#[test]
+fn removal_at_max_pending_fits_log_limit() {
+    // The mocked VM enforces the protocol's 16 KiB total log limit.
+    let mut c = full_pending_with_long_ids();
+    context("owner.test.near", 2);
+    c.remove_agent(id(LONG_AGENT));
+    assert!(c.list_pending().is_empty());
+    assert_eq!(c.reserved, 0);
+    let total: usize = get_logs().iter().map(String::len).sum();
+    assert!(total < 16_384, "logs {total} bytes");
+}
+
+#[test]
+fn sweep_is_bounded_and_expire_handles_rest() {
+    let mut c = full_pending_with_long_ids();
+    context("owner.test.near", DAY_NS + 1);
+    drop(c.withdraw(U128(1)));
+    assert_eq!(c.list_pending().len(), MAX_PENDING - MAX_SWEEP);
+    let total: usize = get_logs().iter().map(String::len).sum();
+    assert!(total < 16_384, "logs {total} bytes");
+    for r in c.list_pending() { context("stranger.test.near", DAY_NS + 1); c.expire(r.id); }
+    assert!(c.list_pending().is_empty());
+    assert_eq!(c.reserved, 0);
+}
+
+#[test]
+fn stale_transfer_can_be_cleared_only_after_its_day() {
+    let mut c = setup(); let t = transferring(&mut c, 50);
+    assert_eq!(c.list_transfers(), vec![t]);
+    context("owner.test.near", DAY_NS - 1);
+    fails(|| c.clear_stale_transfer(t), "E_NOT_STALE");
+    context("owner.test.near", DAY_NS);
+    c.clear_stale_transfer(t);
+    assert!(c.list_transfers().is_empty());
+    fails(|| c.clear_stale_transfer(t), "E_TRANSFER");
+    // A late callback for a cleared entry fails instead of touching the budget.
+    callback(false, DAY_NS);
+    fails(|| { c.on_transfer(t); }, "E_TRANSFER");
+}
+
+#[test]
+fn approve_after_removal_and_daily_cap_reduction() {
+    let mut c = setup(); let r = pending(&mut c, 100);
+    context("owner.test.near", 1);
+    let mut p = policy(); p.daily_max = U128(99); p.per_tx_max = U128(99); p.approval_threshold = U128(50);
+    c.update_policy(id("agent.test.near"), p);
+    fails(|| { c.approve(r); }, "E_PER_TX");
+    let mut p = policy(); p.daily_max = U128(150); c.update_policy(id("agent.test.near"), p);
+    context("agent.test.near", 1);
+    fails(|| { spend(&mut c, 51); }, "E_DAILY");
+    context("owner.test.near", 1);
+    c.remove_agent(id("agent.test.near"));
+    fails(|| { c.approve(r); }, "E_REQUEST");
 }
