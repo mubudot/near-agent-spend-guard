@@ -1,0 +1,11 @@
+# Generated build and dependency directories
+/target/
+/node_modules/
+# Local runtime data and credentials
+/.tmp/
+/.near/
+/.env
+/.env.*
+!/.env.example
+/codex_phase1.log
+*.log
