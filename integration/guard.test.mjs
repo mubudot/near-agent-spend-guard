@@ -139,7 +139,7 @@ test('sandbox: transfers, reservations, approvals, rollback and restricted acces
       const callback = result.result.receipts_outcome.find((r) => r.outcome.logs.some((l) => l.includes('"transfer_succeeded"')));
       assert.ok(callback, 'callback receipt found');
       const burnt = BigInt(callback.outcome.gas_burnt);
-      t.diagnostic(`on_transfer gas_burnt: ${Number(burnt) / 1e12} Tgas (budget 30 Tgas)`);
+      t.diagnostic(`on_transfer gas_burnt: ${Number(burnt) / 1e12} Tgas (budget 50 Tgas)`);
       assert.ok(burnt < 15_000_000_000_000n, `callback used ${burnt}`);
       assert.deepEqual(await guard.view('list_transfers'), []);
       await root.call(guard, 'update_policy', { agent: agent.accountId, policy });
@@ -194,8 +194,8 @@ test('sandbox: transfers, reservations, approvals, rollback and restricted acces
       assert.ok(callback, 'callback receipt found');
       const approveBurnt = BigInt(outcomes[0].outcome.gas_burnt);
       const callbackBurnt = BigInt(callback.outcome.gas_burnt);
-      t.diagnostic(`max state: approve ${Number(approveBurnt) / 1e12} Tgas, on_transfer ${Number(callbackBurnt) / 1e12} Tgas (budget 30)`);
-      assert.ok(callbackBurnt < 20n * TG, `callback used ${callbackBurnt}`);
+      t.diagnostic(`max state: approve ${Number(approveBurnt) / 1e12} Tgas, on_transfer ${Number(callbackBurnt) / 1e12} Tgas (budget 50)`);
+      assert.ok(callbackBurnt < 30n * TG, `callback used ${callbackBurnt}`);
       assert.deepEqual(await guard.view('list_transfers'), []);
       await root.call(guard, 'remove_agent', { agent: bulk.accountId }, { gas: GAS });
       assert.equal((await guard.view('list_pending')).length, 0);

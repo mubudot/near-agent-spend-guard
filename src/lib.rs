@@ -12,9 +12,10 @@ const MAX_TRANSFERS: usize = 64;
 const MAX_AUDIT: usize = 128;
 const MAX_MEMO: usize = 256;
 const MAX_SWEEP: usize = 16;
-// The sandbox integration test measures ~2.3 Tgas with a full allowlist; 30 Tgas leaves
-// headroom for maximum bounded state.
-const CALLBACK_GAS: Gas = Gas::from_tgas(30);
+// The sandbox integration test measures ~2.3 Tgas at small state and ~19 Tgas at maximum
+// bounded state (the whole state is one Borsh value). 50 Tgas keeps >2x headroom; `spend`
+// and `approve` need 100 Tgas prepaid.
+const CALLBACK_GAS: Gas = Gas::from_tgas(50);
 
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug)]
 #[serde(crate = "near_sdk::serde")]

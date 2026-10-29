@@ -1,0 +1,53 @@
+# Review log
+
+Cross-check process: (1) judge-style reproduction from a fresh clone following only the
+README, (2) rules check ([REQUIREMENTS_CHECK.md](REQUIREMENTS_CHECK.md)), (3) independent
+OpenAI Codex review plus re-review of the fixes, (4) privacy scan.
+
+## Round 1 — 2026-10-30
+
+### 1. Judge-style reproduction (clean x86_64 Linux host, fresh clone of the phase 1 commit)
+
+| # | Step | Problem found | Fix |
+| --- | --- | --- | --- |
+| R1 | README step 1 `source scripts/rust-env.sh` | The helper hard-coded the development container's toolchain paths (`RUSTUP_HOME`, `CARGO_HOME`); on any other machine `cargo` then failed (`cargo: command not found`). | Helper and Zig wrappers removed from the repo. README uses plain `cargo`; `rust-toolchain.toml` pins Rust 1.99.1 + `wasm32-unknown-unknown`, which rustup installs automatically. |
+| R2 | README step 5 `npm run test:integration` | Fails on x86_64: near-workspaces 5.0.0's bundled neard 2.6.2 rejects WASM from current Rust (`CompilationError: PrepareError: Deserialization`). README only mentioned an ARM64 override. | The test now downloads the official nearcore **2.14.0** sandbox (the release mainnet and testnet run) into `.tmp/` and uses it by default; `SPEND_GUARD_SANDBOX_BIN` still overrides. Pinning an older Rust was rejected: `near-sys` (near-sdk 5.17.2) requires rustc ≥ 1.93, and neard 2.6.2 still rejects that WASM. |
+| R3 | Integration teardown with neard 2.14.0 | `ENOTEMPTY` removing `.tmp/integration/chain` while neard was still flushing a state snapshot; all subtests had passed but the test was marked failed. | Removal retries (`maxRetries`) after a 1 s grace period; a deferred cleanup is logged, not failed, and the next run clears the directory first. |
+| R4 | README expected output | Step 1 pointed at STATUS.md instead of stating the count; STATUS.md carried host details. | README now states each expected count; STATUS.md rewritten with current results only. |
+
+ARM64 note: the new downloader also covers Linux ARM64 and macOS (official builds exist for
+`Linux-aarch64`, `Darwin-arm64`, `Darwin-x86_64`), replacing the old explicit ARM64 skip.
+Only x86_64 Linux was executed.
+
+### 2. Codex independent review (round 1) — verdict `fix-first`
+
+| ID | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| F1 | high | `new(owner)` only checked `predecessor == owner`, so whoever called first after deployment could initialize with themselves as owner and withdraw funds. | **Fixed.** `new` is `#[private]` with an explicit `predecessor == current_account` check (`E_PRIVATE`); deploy + `new` is one batch transaction signed by the contract account. Unit test `init_only_by_contract_account`; integration subtest shows a third party (and the would-be owner) cannot initialize a bare deployment. Codex round 2 noted near-sdk ignores `#[private]` on initializers, so the explicit check is what protects it. |
+| F2 | medium | Sweeping/cancelling up to 64 requests emitted one event each, which can exceed the 16 KiB receipt log limit and revert `spend`, `withdraw`, or `remove_agent`. | **Fixed.** Sweeps release at most 16 expired requests per call (`expire` is permissionless for the rest); `remove_agent` emits one aggregate event. Unit tests at 64 pending requests with 64-char IDs and 256-byte memos assert < 16,384 log bytes; the mocked VM enforces the protocol limit (verified). |
+| F3 | medium | A callback running out of its fixed 15 Tgas leaves its transfer entry forever; 64 such entries block all spends. Callback cost grows with state. | **Fixed and confirmed by measurement.** The new max-state subtest measured `on_transfer` at **~19 Tgas** at maximum bounded state (32 agents × 32 allowlist entries, 64 pending, full audit), so 15 Tgas would really have failed. Budget raised to 50 Tgas (asserted < 30 Tgas). New owner-only `clear_stale_transfer` frees an entry from a previous UTC day without refunding (outcome unknown); a late callback then fails harmlessly. `list_transfers` view added. |
+| F4 | low | Owner removing and re-adding an agent resets its daily budget. | **Documented** (README trust model): owner-only, and the owner is trusted. |
+| F5 | low | Demo printed transaction status as if the payment succeeded; the transfer settles in a later receipt. | **Fixed.** `summarizeOutcome` reads the contract's events and the demo prints `payment: completed / failed / awaiting_owner_approval` (exit 2 on failure). Unit tested. |
+| F6 | low | README sandbox instructions omitted the x86_64 failure. | **Fixed** (R2 above). |
+| F7 | info | Coverage gaps. | **Added** tests for F1–F3, approve after removal, daily-cap reduction (including an `E_DAILY` regression on approval), max-state gas. Versioned state/migration noted as a known limitation. |
+
+### 3. Codex re-review (round 2) — verdict `ship`
+
+No critical/high/medium issues. Two low notes: REVIEW_LOG.md was not yet written
+(this file), and the gas test did not cover maximum state. The maximum-state subtest was
+added in response, and it exposed the real gas risk recorded under F3.
+
+### 4. Privacy scan
+
+Tracked files and full git history were scanned for the author's private email and
+provider, real name, location, tunnel URLs, IP addresses (including the test host's),
+private-key and token patterns, and absolute workspace paths. Findings, all removed:
+the test host's IP and workspace paths in STATUS.md, the container-only helper scripts,
+and two internal task-brief files. History was rewritten locally (never pushed) so no
+earlier commit contains them. The only identity left is the pseudonymous Git author
+`mubudot <349922873+mubudot@users.noreply.github.com>`. `.env.example` has empty values.
+
+### 5. Final results (fresh clone, README only, clean x86_64 host)
+
+See [STATUS.md](../STATUS.md): `cargo test` 26/26, `npm test` 13/13,
+`npm run test:integration` 9/9 (1 test + 8 on-chain subtests) on nearcore 2.14.0, twice.

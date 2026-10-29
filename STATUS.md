@@ -14,8 +14,8 @@ README, with no extra environment variables:
 | 4. `cargo build --locked --target wasm32-unknown-unknown --release` | Passed, ~277 KB WASM |
 | 5. `npm run test:integration` (auto-downloaded nearcore 2.14.0 sandbox) | **9 passed (1 test + 8 on-chain subtests), 0 failed, 0 skipped**; a second run (cached sandbox) also 9/9 |
 
-Total: **48 passed, 0 failed.** Measured `on_transfer` callback: ~2.3 Tgas with a 32-entry
-allowlist (budget 30 Tgas).
+Total: **48 passed, 0 failed.** Measured `on_transfer` callback: ~2.3 Tgas at small state and ~19 Tgas at maximum
+bounded state (budget 50 Tgas; the original 15 Tgas would have run out at maximum state).
 
 Review history, findings, and fixes: [docs/REVIEW_LOG.md](docs/REVIEW_LOG.md).
 Rules checklist: [docs/REQUIREMENTS_CHECK.md](docs/REQUIREMENTS_CHECK.md).

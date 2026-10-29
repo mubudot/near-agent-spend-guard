@@ -119,7 +119,7 @@ from the repository root. No account, key, or API token is needed.
    ```
 
    → The first run downloads the official nearcore **2.14.0** sandbox (the release mainnet
-   and testnet run; ~50 MB) into the ignored `.tmp/` directory. See `pass 9` and `fail 0`
+   and testnet run; ~36 MB download) into the ignored `.tmp/` directory. See `pass 9` and `fail 0`
    (1 test with 8 on-chain subtests): atomic deploy + private `new`, a third party unable to
    initialize, a transfer, reserve/reject/approve, a real failed-transfer callback rollback,
    the callback's measured gas (also at maximum bounded state: 32 agents × 32 allowlist
@@ -138,6 +138,8 @@ from the repository root. No account, key, or API token is needed.
 `new` is `#[private]`: deploy and initialize in **one batch transaction signed by the
 contract account** (DeployContract + FunctionCall `new {"owner": "<owner>.testnet"}`), so
 nobody can front-run initialization. The integration test does exactly this.
+Attach 100 Tgas to `spend` and `approve`: each reserves 50 Tgas for the `on_transfer`
+callback, which the integration test measures at ~19 Tgas at maximum bounded state.
 
 ## Scope and next phase
 
