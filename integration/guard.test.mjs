@@ -74,7 +74,9 @@ test('sandbox: transfers, reservations, approvals, rollback and restricted acces
   // near-workspaces' own cleanup uses a non-recursive rm and leaves chain data behind
   // after a failed run, which makes the next Worker.init fail with EISDIR. Clear it here.
   const homeDir = join(temp, 'chain');
-  await rm(homeDir, { recursive: true, force: true });
+  // neard can still be flushing state snapshots right after it is killed; retry the removal.
+  const clean = () => rm(homeDir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+  await clean();
   const worker = await Worker.init({ network: 'sandbox', homeDir, rm: false });
   try {
     const root = worker.rootAccount;
@@ -162,6 +164,7 @@ test('sandbox: transfers, reservations, approvals, rollback and restricted acces
     });
   } finally {
     await worker.tearDown();
-    await rm(homeDir, { recursive: true, force: true });
+    await new Promise((r) => setTimeout(r, 1000));
+    await clean().catch((e) => t.diagnostic(`chain dir cleanup deferred to next run: ${e.code}`));
   }
 });

@@ -62,8 +62,7 @@ Prerequisites: [rustup](https://rustup.rs) with a C toolchain (`build-essential`
 Debian/Ubuntu, Xcode CLT on macOS), Node.js 20+ with npm, `tar`, and internet access for
 the first run. `rust-toolchain.toml` pins Rust 1.99.1 with the `wasm32-unknown-unknown`
 target; rustup installs both automatically on the first `cargo` command. Run everything
-from the repository root. No account, key, or API token is needed. (`scripts/rust-env.sh`
-is only for the original development container; do not source it elsewhere.)
+from the repository root. No account, key, or API token is needed.
 
 1. Run the Rust unit tests:
 

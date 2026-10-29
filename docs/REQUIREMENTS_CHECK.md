@@ -1,0 +1,31 @@
+# Requirements check: NEAR HACKATHON
+
+Checked against the live rules at https://nearhackathon.com/HACKATHON.md (re-read
+2026-10-30). Status: ✅ met · ⏳ phase 2 / human action before submission · ➖ not applicable.
+
+| # | Rule | Status | Evidence / action |
+| --- | --- | --- | --- |
+| 1 | Public repository by Sun 2026-11-15 07:59 CST (UTC+08:00) | ⏳ | Repo is local only. The human makes it public; never without their explicit yes. |
+| 2 | README for machine and human readers: what it is, the problem, "do X → see Y" steps, no marketing (Procedure §1, Q-017) | ✅ | README: purpose, architecture, 5 reproduction steps with expected output; verified from a fresh clone on a clean x86_64 Linux host (docs/REVIEW_LOG.md). |
+| 3 | Reproducible README (Q-012, Q-017 screening by Claude Code / Codex) | ✅ | Fresh clone + README only: no hand-set env vars, toolchain pinned by `rust-toolchain.toml`, sandbox auto-downloaded by the integration test. |
+| 4 | Demo post on X saying it was built at NEAR HACKATHON, with video or screenshots (Start here §3) | ⏳ | Human records and posts. The demo is local, so **a video is required**; screenshots alone are not enough (Q-012). |
+| 5 | Local-only demo acceptable (Q-012) | ✅ | Sandbox + offline demo are local. A hosted/testnet demo is a plus (phase 2); keep any hosted demo up to 2026-11-18, ideally 2026-11-25. |
+| 6 | Testnet-only projects eligible (Q-010) | ✅ | Demo is testnet-only; `demo/parse.mjs` rejects non-`.testnet` receivers and accounts. No mainnet deploy. |
+| 7 | No mainnet deploy / signing / spending without explicit human confirmation | ✅ | None performed. Mainnet appears only in the prize payout account the human provides. |
+| 8 | No committed secrets; keys in environment variables | ✅ | `.env.example` has empty placeholders; `.env*` git-ignored; privacy scan in docs/REVIEW_LOG.md. |
+| 9 | LICENSE file (Q-014) | ✅ | `LICENSE` (MIT, mubudot); `Cargo.toml` `license = "MIT"`. |
+| 10 | Libraries, templates, AI code listed in README (Q-005) | ✅ | README names Hark and OpenAI Codex, near-sdk 5.17.2, near-api-js 5.1.1, near-workspaces 5.0.0. |
+| 11 | Code timing (Q-001, Q-003, Q-004) | ✅ | All commits are after the 2026-10-19 announcement, which opens the window; no pre-existing product, so no baseline diff is needed. Optional: tag `hackathon-submission` at the submitted commit. |
+| 12 | Existing product on another chain disclosed (Q-002) | ➖ | New project, NEAR only. |
+| 13 | One person, at most 2 different projects, each README names the other (Q-015) | ✅ | README names the sibling project **paypal-guardrail-buyer**. The sibling's README must also name this project (check in that repo before submitting). |
+| 14 | Mandatory integrations (Q-011) | ✅ | None needed; own NEAR contract fits the track. |
+| 15 | Track fit | ✅ | `security` (spending limits, policy engine, function-call keys: the track's own hints); also fits `agents`. |
+| 16 | Repo stays public through judging (Q-014) | ⏳ | Human keeps it public until results (by 2026-11-19). |
+| 17 | Submission window Sun 2026-11-01 08:00 → Sun 2026-11-15 07:59 CST; one submission per project; payload confirmed by the human | ⏳ | Not submitted. All fields (name, lead, email, team size, tracks, mainnet payout account, repo URL, demo URL, description, consent) come from the human; never invented. |
+| 18 | `website` field is a spam trap; send exactly the listed fields | ⏳ | Applies at submission time. |
+
+## Open before submission
+
+1. Phase 2: testnet deploy (atomic deploy + `new`), policy setup, restricted key, a live
+   `--submit` run, and the demo video.
+2. Human: make the repo public, post the X demo, confirm the submission payload.
