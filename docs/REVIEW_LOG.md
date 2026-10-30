@@ -199,3 +199,20 @@ per agent recorded and checked in `spend`), which needs a redeploy.
 
 Codex re-check: D1, D3, D4 FIXED, D2 partly (misfiled keys); the key check was then added with a test. Stopped
 after two review rounds, as planned.
+
+## Pre-submission release check (2026-10-30)
+
+Fresh `git clone` to /tmp, README followed verbatim with no keys: `npm ci --ignore-scripts` + `npm test` (57 → now 61
+passed), demo preview and `.near` rejection, `--scenario injection` / `duplicate`, live read-only `status`, `cargo test`
+26 passed, WASM builds; integration test skipped on this host (hard nofile 4096 < 65535). A judge would have tripped
+on: README step 2 still said `pass 47`; the judge quick start needed internet (an offline line was added); the
+bring-your-own-model examples (`OPENAI_MODEL=<model id>`) were not runnable shell. Added `RELEASE_CHECKLIST.md`.
+One Codex release review (judge-readability, modularity, correctness); modularity verdict: current layout fine.
+
+| ID | Source | Finding | Fix |
+| --- | --- | --- | --- |
+| R1 | Codex (must-fix) | Two runs sharing one ledger file loaded separate snapshots: both could reserve one invoice, and a later save overwrote the other's records. | Every check-and-write runs under an exclusive `<ledger>.lock` (O_EXCL) on a fresh read of the file; a held lock fails closed with the file name (+test). |
+| R2 | Codex (must-fix) | Turn limit and truncated/empty model replies exited 0. | Any stopped run exits 1 (payout failure still 2); `max_tokens` or an empty reply counts as interrupted (+test). |
+| R3 | Codex (must-fix) | A numeric `amount_near` was float-rounded before conversion (0.100000000000000005 → 0.1). | Only decimal strings accepted (+test). |
+| R4 | Codex (must-fix) | `owner.mjs add-agent --threshold 0` was rejected though the contract allows it (every payment needs approval). | Zero allowed for the threshold only (+test). |
+| R5 | Codex (must-fix) | Model examples in README were not executable. | Quoted placeholder values. |

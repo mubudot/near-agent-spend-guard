@@ -107,7 +107,10 @@ const MAX_MEMO_BYTES = 256; // the contract's MAX_MEMO, in bytes
 // (the contract stores the memo but does not enforce uniqueness; see demo/invoice-ledger.mjs).
 export function spendArgs(input) {
   const receiver = testnetAccount(String(input?.receiver ?? ''), 'receiver');
-  const amount = nearToYocto(String(input?.amount_near ?? ''));
+  // A JSON number would already have been rounded to a float (0.100000000000000005 -> 0.1), so only
+  // a decimal string is accepted: the amount the model wrote is the amount that is checked and sent.
+  if (typeof input?.amount_near !== 'string') throw new Error('amount_near must be a decimal string such as "0.1", not a number');
+  const amount = nearToYocto(input.amount_near);
   const invoiceId = normalizeInvoiceId(input?.invoice_id);
   const memo = capBytes(`invoice ${invoiceId}: ${String(input?.memo ?? '').trim() || 'AI agent payment'}`, MAX_MEMO_BYTES);
   return { receiver, amount: amount.toString(), memo, invoiceId };
@@ -184,7 +187,12 @@ export async function runAgent({ llm, task, page, chain, ledger = new InvoiceLed
     messages.push({ role: 'assistant', content: reply.content });
     const uses = reply.content.filter((b) => b.type === 'tool_use');
     if (uses.length === 0) {
-      return { steps, final: reply.content.filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim(), stop_reason: reply.stop_reason, turns: turn + 1 };
+      const final = reply.content.filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim();
+      // A reply cut off by the token limit, or with no text at all, is an interrupted run, not a finished one.
+      if (reply.stop_reason === 'max_tokens' || !final) {
+        return { steps, final: final || null, stop_reason: reply.stop_reason, turns: turn + 1, stopped: `model reply ${final ? 'truncated (max_tokens)' : 'was empty'}; the task may be unfinished` };
+      }
+      return { steps, final, stop_reason: reply.stop_reason, turns: turn + 1 };
     }
     const results = [];
     for (const u of uses) {
@@ -258,7 +266,7 @@ export function summarizeSpends(steps) {
 
 export function runExitCode(spends, run) {
   if (spends.some((x) => x.payment !== 'refused' && paymentExitCode(x.payment))) return 2;
-  return run.llm_error || run.ledger_error ? 1 : 0;
+  return run.stopped ? 1 : 0; // LLM error, ledger error, turn limit, truncated or empty reply
 }
 
 export function parseCli(argv) {

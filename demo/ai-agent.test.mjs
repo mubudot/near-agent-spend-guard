@@ -179,3 +179,25 @@ test('the repository names LLM credentials only by environment variable; only of
   const hosts = files.flatMap((f) => [...readFileSync(f, 'utf8').matchAll(/https:\/\/([a-z0-9.-]+)/g)].map((m) => m[1]));
   assert.deepEqual([...new Set(hosts)].sort(), ['api.anthropic.com', 'api.openai.com']);
 });
+
+test('interrupted runs exit 1: turn limit, truncated or empty reply; a payout failure still exits 2', async () => {
+  let i = 0;
+  const looping = async () => ({ stop_reason: 'tool_use', content: [{ type: 'tool_use', id: `t${(i += 1)}`, name: 'get_budget', input: {} }] });
+  const limited = await runAgent({ llm: looping, task: 't', page: '', chain: new SimulatedGuard(), maxTurns: 2 });
+  assert.equal(runExitCode(summarizeSpends(limited.steps), limited), 1);
+  const truncated = await runAgent({ llm: async () => ({ stop_reason: 'max_tokens', content: [{ type: 'text', text: 'I will now pay' }] }), task: 't', page: '', chain: new SimulatedGuard() });
+  assert.match(truncated.stopped, /truncated/);
+  assert.equal(runExitCode([], truncated), 1);
+  const empty = await runAgent({ llm: async () => ({ stop_reason: 'end_turn', content: [] }), task: 't', page: '', chain: new SimulatedGuard() });
+  assert.match(empty.stopped, /empty/);
+  assert.equal(runExitCode([{ payment: 'failed' }], limited), 2);
+  const done = await runAgent({ llm: async () => ({ stop_reason: 'end_turn', content: [{ type: 'text', text: 'done' }] }), task: 't', page: '', chain: new SimulatedGuard() });
+  assert.equal(done.stopped, undefined);
+  assert.equal(runExitCode([], done), 0);
+});
+
+test('spend amount must be a decimal string: a JSON number (already float-rounded) is refused', () => {
+  assert.throws(() => spendArgs({ receiver: 'a.testnet', amount_near: 0.100000000000000005, invoice_id: '1', memo: 'x' }), /decimal string/);
+  assert.throws(() => spendArgs({ receiver: 'a.testnet', amount_near: 1, invoice_id: '1', memo: 'x' }), /decimal string/);
+  assert.equal(spendArgs({ receiver: 'a.testnet', amount_near: '0.100000000000000005', invoice_id: '1', memo: 'x' }).amount, '100000000000000005000000');
+});

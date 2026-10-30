@@ -181,3 +181,20 @@ test('CLI: --scenario duplicate shows the refusal (exit 0); AI_AGENT_LEDGER pers
   assert.equal(broken.status, 1);
   assert.match(broken.stderr, /fix or move AI_AGENT_LEDGER/);
 });
+
+test('shared ledger file: a second run (loaded before the first paid) cannot reserve the same invoice; a held lock fails closed', () => {
+  const dir = tmp();
+  const path = join(dir, 'paid.json');
+  const a = new InvoiceLedger({ path });
+  const b = new InvoiceLedger({ path }); // both loaded the empty file
+  a.reserve(DEFAULT_MERCHANT, '1042', '0.1');
+  assert.throws(() => b.reserve(DEFAULT_MERCHANT, '1042', '0.1'), /duplicate payment refused/);
+  b.reserve(DEFAULT_MERCHANT, '1043', '0.1'); // b's save keeps a's record
+  a.settle(DEFAULT_MERCHANT, '1042', { payment: 'completed', transaction: 'TX1' }); // and a's keeps b's
+  const onDisk = new InvoiceLedger({ path });
+  assert.deepEqual([onDisk.find(DEFAULT_MERCHANT, '1042').payment, onDisk.find(DEFAULT_MERCHANT, '1043').payment], ['completed', 'submitting']);
+  writeFileSync(`${path}.lock`, '999999\n'); // another run is mid-write (or crashed there)
+  assert.throws(() => a.reserve(DEFAULT_MERCHANT, '2000', '0.1'), (e) => e.code === 'ELEDGERLOCKED' && /paid\.json\.lock/.test(e.message));
+  assert.equal(new InvoiceLedger({ path }).find(DEFAULT_MERCHANT, '2000'), null);
+  assert.equal(a.find(DEFAULT_MERCHANT, '2000'), null);
+});

@@ -129,7 +129,7 @@ async function main() {
       const allowlist = flag(args, '--allow').split(',').map((a) => testnetAccount(a.trim(), 'allowlist entry'));
       const policy = {
         per_tx_max: nearToYocto(flag(args, '--per-tx')).toString(), daily_max: nearToYocto(flag(args, '--daily')).toString(),
-        approval_threshold: nearToYocto(flag(args, '--threshold')).toString(), allowlist, paused: false,
+        approval_threshold: nearToYocto(flag(args, '--threshold'), { allowZero: true }).toString(), allowlist, paused: false,
       };
       const result = await (await signer(owner())).functionCall({ contractId: contract(), methodName: 'add_agent', args: { agent, policy }, gas: GAS });
       return done('add-agent', result, { agent, policy });

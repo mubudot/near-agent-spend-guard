@@ -56,11 +56,14 @@ export class InvoiceLedger {
 
   // Before submitting: write a blocking "submitting" record (persisted first when a path is set).
   // Throws (and the caller must not submit) if the invoice is already recorded or the write fails.
+  // With a file, the check and the write happen under an exclusive lock on a fresh read of the
+  // file, so two runs sharing the ledger cannot both reserve the same invoice, and neither run's
+  // save can overwrite records the other one wrote.
   reserve(receiver, invoiceId, amountNear) {
-    this.assertUnpaid(receiver, invoiceId);
-    const key = this.key(receiver, invoiceId);
-    this.entries[key] = { receiver, invoice_id: invoiceId, amount_near: amountNear, payment: 'submitting', at: new Date().toISOString() };
-    try { this.persist(); } catch (error) { delete this.entries[key]; throw error; }
+    this.update(() => {
+      this.assertUnpaid(receiver, invoiceId);
+      this.entries[this.key(receiver, invoiceId)] = { receiver, invoice_id: invoiceId, amount_near: amountNear, payment: 'submitting', at: new Date().toISOString() };
+    });
   }
 
   // After the contract answered (or the submission failed: payment "unknown"): keep a blocking
@@ -68,14 +71,36 @@ export class InvoiceLedger {
   // ("submitting"), which still blocks.
   settle(receiver, invoiceId, { payment, transaction } = {}) {
     const key = this.key(receiver, invoiceId);
-    const prior = this.entries[key];
-    if (!prior) return;
-    if (BLOCKING.has(payment)) this.entries[key] = { ...prior, payment, ...(transaction ? { transaction } : {}), at: new Date().toISOString() };
-    else delete this.entries[key];
-    this.persist();
+    const mine = this.entries[key];
+    this.update(() => {
+      const prior = this.entries[key] ?? mine;
+      if (!prior) return;
+      if (BLOCKING.has(payment)) this.entries[key] = { ...prior, payment, ...(transaction ? { transaction } : {}), at: new Date().toISOString() };
+      else delete this.entries[key];
+    });
   }
 
-  persist() { if (this.path) save(this.path, this.entries); }
+  // Read-modify-write. In memory: apply and keep. With a file: lock, re-read, apply, save, unlock;
+  // on any error the in-memory view is restored and the file is left as it was.
+  update(change) {
+    if (!this.path) {
+      const before = { ...this.entries };
+      try { change(); } catch (error) { this.entries = before; throw error; }
+      return;
+    }
+    const before = this.entries;
+    const release = lock(this.path);
+    try {
+      this.entries = load(this.path);
+      change();
+      save(this.path, this.entries);
+    } catch (error) {
+      this.entries = before;
+      throw error;
+    } finally {
+      release();
+    }
+  }
 }
 
 // A record is valid only under its own key (<scope>|<receiver>|<invoice_id>), so a misfiled
@@ -98,6 +123,32 @@ function load(path) {
     throw new Error('the paid-invoice ledger is not valid JSON in the expected format; fix or move AI_AGENT_LEDGER before paying');
   }
   return paid;
+}
+
+// Exclusive lock file next to the ledger (created with O_EXCL, so only one holder). Held only for
+// one read-modify-write, a few milliseconds. Fail closed: if it stays taken (another run is writing,
+// or a crashed run left it), nothing is submitted; the message says which file to check.
+const LOCK_WAIT_MS = 2000;
+const pause = new Int32Array(new SharedArrayBuffer(4));
+function lock(path) {
+  mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+  const lockPath = `${path}.lock`;
+  const deadline = Date.now() + LOCK_WAIT_MS;
+  for (;;) {
+    try {
+      const fd = openSync(lockPath, 'wx', 0o600);
+      try { writeSync(fd, `${process.pid}\n`); } finally { closeSync(fd); }
+      return () => rmSync(lockPath, { force: true });
+    } catch (error) {
+      if (error?.code !== 'EEXIST') throw error;
+      if (Date.now() >= deadline) {
+        const busy = new Error(`the paid-invoice ledger is locked by another run (${lockPath}); if no other run is active, delete that file and rerun`);
+        busy.code = 'ELEDGERLOCKED';
+        throw busy;
+      }
+      Atomics.wait(pause, 0, 0, 25);
+    }
+  }
 }
 
 function save(path, paid) {

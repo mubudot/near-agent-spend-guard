@@ -19,11 +19,13 @@ export function parseRequest(text) {
 }
 
 // Exact decimal NEAR -> yoctoNEAR (1 NEAR = 10^24); no floating point, no rounding.
-export function nearToYocto(decimal) {
+// allowZero: only for policy values where 0 has a meaning (approval_threshold 0 = every payment
+// needs the owner's approval); payment amounts and caps stay strictly positive.
+export function nearToYocto(decimal, { allowZero = false } = {}) {
   if (!/^\d+(?:\.\d{1,24})?$/.test(String(decimal))) throw new Error('Amount must be a decimal NEAR value with at most 24 decimals');
   const [whole, fraction = ''] = String(decimal).split('.');
   const amount = BigInt(whole) * YOCTO + BigInt(fraction.padEnd(24, '0'));
-  if (amount <= 0n || amount >= 2n ** 128n) throw new Error('Amount must be positive and fit u128');
+  if (amount >= 2n ** 128n || amount < 0n || (amount === 0n && !allowZero)) throw new Error(allowZero ? 'Amount must fit u128' : 'Amount must be positive and fit u128');
   return amount;
 }
 

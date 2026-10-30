@@ -120,3 +120,11 @@ test('README testnet rerun block stops at the first failure', () => {
   assert.notEqual(r.status, 0);
   assert.doesNotMatch(r.stdout, /REACHED/);
 });
+
+test('zero is accepted only where it means something (approval threshold), never as a payment amount', () => {
+  assert.equal(nearToYocto('0', { allowZero: true }), 0n);
+  assert.equal(nearToYocto('0.0', { allowZero: true }), 0n);
+  assert.throws(() => nearToYocto('0'), /positive/);
+  assert.throws(() => parseRequest('send 0 NEAR to shop.testnet'), /positive/);
+  assert.throws(() => nearToYocto('-1', { allowZero: true }), /decimal/);
+});

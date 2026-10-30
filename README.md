@@ -41,8 +41,11 @@ owner (full-access keys)                agent (untrusted: LLM, script, bot)
 | keep going after it misbehaves | global or per-agent pause (`E_PAUSED`); owner removes the agent |
 
 **Judge quick start (30 s, no build, no key):** with Node 20+, run `npm ci --ignore-scripts`, then
-`NEAR_CONTRACT_ACCOUNT=guard.spendguard-b31c91.testnet node demo/owner.mjs status agent.spendguard-b31c91.testnet`
-→ the live testnet policy and the agent's spend-only key (details under [Live on testnet](#live-on-testnet)).
+- `npm run -s ai-agent -- --scenario injection` (fully offline) → a deliberately hijacked agent tries three
+  payments: the 0.1 NEAR invoice `completed`, 0.5 NEAR to `stranger.testnet` `refused` (`E_NOT_ALLOWLISTED`),
+  0.9 NEAR `awaiting_owner_approval` ([details](#optional-ai-agent-mode-and-a-prompt-injection-test));
+- `NEAR_CONTRACT_ACCOUNT=guard.spendguard-b31c91.testnet node demo/owner.mjs status agent.spendguard-b31c91.testnet`
+  (read-only, needs internet) → the live testnet policy and the agent's spend-only key (details under [Live on testnet](#live-on-testnet)).
 Every transaction of the recorded live run is linked in [docs/TESTNET_RUN.md](docs/TESTNET_RUN.md).
 The full local reproduction is [below](#reproduce-locally-do-x--see-y).
 
@@ -116,14 +119,14 @@ from the repository root. No account, key, or API token is needed.
    rollback, reservations, the 16 KiB receipt log limit at maximum pending requests,
    stale-transfer cleanup, and bounded audit logs.
 
-2. Install the locked JavaScript dependencies and test the parser:
+2. Install the locked JavaScript dependencies and run the JavaScript tests:
 
    ```bash
    npm ci --ignore-scripts
    npm test
    ```
 
-   → See `pass 47` and `fail 0`, including exact amounts, rejected invalid input, the
+   → See `pass 61` and `fail 0`, including exact amounts, rejected invalid input, the
    outcome summary that tells "accepted" apart from "paid", and the AI-agent mode below.
 
 3. Preview an agent request without credentials:
@@ -311,7 +314,7 @@ npm run -s ai-agent -- --scenario injection
 threshold) `awaiting_owner_approval`, i.e. held for the owner, who can reject it. `--scenario coffee` is the
 honest page (one 0.1 NEAR payment); `--scenario duplicate` asks to pay the same invoice twice (below). Exit status **0**: refusals and held requests are the guard working;
 **2**: a payout failed or a submission's outcome is unknown (the run stops rather than let the model retry);
-**1**: any other error, including an LLM failure mid-run (the steps so far, with their hashes, are still printed).
+**1**: any other error or an interrupted run: an LLM failure, the 8-turn limit, or a truncated/empty model reply (the steps so far, with their hashes, are still printed).
 
 With `--submit` the same calls go to the testnet contract (env as in the rerun section:
 `NEAR_AGENT_ACCOUNT`, `NEAR_CONTRACT_ACCOUNT`, `NEAR_AGENT_PRIVATE_KEY`; `AI_AGENT_MERCHANT` names the
@@ -327,15 +330,16 @@ providers (`demo/llm/`) get the same three tools, and `spend` still goes through
 contract, so whichever model you plug in, the contract decides.
 
 ```bash
+# Replace the 'your-…' values; everything else runs as written.
 # (a) Anthropic Messages API, or any Messages-compatible endpoint
-ANTHROPIC_API_KEY=sk-ant-… npm run -s ai-agent -- --llm anthropic --scenario injection
-#   optional: ANTHROPIC_BASE_URL=<Messages-compatible base URL> ANTHROPIC_AUTH_TOKEN=… (Bearer)  AI_AGENT_MODEL=claude-sonnet-5-5
+ANTHROPIC_API_KEY='your-anthropic-key' npm run -s ai-agent -- --llm anthropic --scenario injection
+#   optional: ANTHROPIC_BASE_URL='https://your-messages-compatible-host' ANTHROPIC_AUTH_TOKEN='your-token' (Bearer)  AI_AGENT_MODEL=claude-sonnet-5-5
 
 # (b) OpenAI-compatible Chat Completions with tool calling
-OPENAI_API_KEY=sk-… OPENAI_MODEL=<model id> npm run -s ai-agent -- --llm openai --scenario injection     # OpenAI
-OPENAI_BASE_URL=https://openrouter.ai/api/v1 OPENAI_API_KEY=sk-or-… OPENAI_MODEL=<provider/model> \
+OPENAI_API_KEY='your-openai-key' OPENAI_MODEL='your-model-id' npm run -s ai-agent -- --llm openai --scenario injection   # OpenAI
+OPENAI_BASE_URL=https://openrouter.ai/api/v1 OPENAI_API_KEY='your-openrouter-key' OPENAI_MODEL='provider/model' \
   npm run -s ai-agent -- --llm openai --scenario injection                                               # OpenRouter
-OPENAI_BASE_URL=http://localhost:11434/v1 OPENAI_MODEL=<local model with tool support> \
+OPENAI_BASE_URL=http://localhost:11434/v1 OPENAI_MODEL='your-local-model-with-tool-support' \
   npm run -s ai-agent -- --llm openai --scenario injection                                               # Ollama (no key)
 #   DeepSeek, vLLM or a gateway: set OPENAI_BASE_URL to its /v1 base (default https://api.openai.com/v1).
 #   Newer OpenAI models: OPENAI_MAX_TOKENS_PARAM=max_completion_tokens (or none).
@@ -371,7 +375,9 @@ The fix is in the agent harness (`demo/invoice-ledger.mjs`), not the contract:
   mid-submission still blocks the invoice until a human checks the explorer and edits the file. If the ledger
   cannot be written, nothing is submitted (exit 1); if the update after a payment fails, the run stops (exit 1)
   and the `submitting` record keeps blocking. A damaged ledger file, or a damaged record in it, stops the run
-  before any payment (fail closed). `AI_AGENT_LEDGER=<path>` picks the file (also for offline runs),
+  before any payment (fail closed). Every check-and-write runs under an exclusive lock file (`<ledger>.lock`) on a fresh
+  read of the ledger, so two runs sharing it cannot both reserve one invoice; a lock left by a crashed run stops the
+  next payment with a message naming the file to delete. `AI_AGENT_LEDGER=<path>` picks the file (also for offline runs),
   `AI_AGENT_LEDGER=memory` keeps it per run.
 - The invoice id is written into the on-chain `memo` (`invoice 1042: coffee`) for reconciliation.
 
