@@ -176,6 +176,27 @@ State afterwards: `pending: []`, `spent_today: 800000000000000000000000` (0.8 NE
 ~0.9961 NEAR. All four hashes were rechecked with the RPC `tx` method: the two payments `SuccessValue` with
 `transfer_succeeded`, the refusals failed with `E_NOT_ALLOWLISTED` (lib.rs:282) and `E_DAILY` (lib.rs:286).
 
+## Dashboard video take
+
+2026-10-30 10:50–10:52 UTC (18:50–18:52 CST), UTC day 20756, main deployment, the agent signing with the same
+`spend`-only key. Before the take `spent_today` was 0.8 NEAR (video take + AI-agent runs earlier that UTC day),
+so the amounts were sized to the 0.4 NEAR left: the held request (0.3 NEAR) fills the cap to 1.2 NEAR, and the
+last 0.1 NEAR then exceeds it. The web dashboard (`npm run dashboard`) was screenshotted before the take, while
+request 8 was pending, and after the take with all five hashes in its transaction inspector.
+
+| Step | Command | Result | Transaction |
+| --- | --- | --- | --- |
+| 1 | `send 0.1 NEAR to $SHOP for coffee` | `payment: completed` | [7cATH32w…](https://testnet.nearblocks.io/txns/7cATH32wJd5mmGMEVKbJah4sMeKKJ2cwB7DDiMziv654) |
+| 2 | `send 0.3 NEAR to $SHOP for monthly API credits` | `awaiting_owner_approval`, `request_id: 8` | [E6t1TMns…](https://testnet.nearblocks.io/txns/E6t1TMns6R2rnjsr9VhdJ5U2Wo83ntGaKbrgfTq3rsK9) |
+| 3 | `node demo/owner.mjs approve 8` | `payment: completed` | [CEx5AWCA…](https://testnet.nearblocks.io/txns/CEx5AWCAqMataznRE92wnbCePWGQKZxiUFHWS2w5ZPaW) |
+| 4 | `send 0.1 NEAR to stranger.testnet for refund scam` | `refused`, `E_NOT_ALLOWLISTED`, exit 3 | [F1upgYKv…](https://testnet.nearblocks.io/txns/F1upgYKvxxfg1poy3mzFhbeAkxifQdP9w8hsNbJaKAo) |
+| 5 | `send 0.1 NEAR to $SHOP for second order` | `refused`, `E_DAILY` (1.2 + 0.1 > 1.2), exit 3 | [ABq5gv7D…](https://testnet.nearblocks.io/txns/ABq5gv7DxagdLSxow2EixWZYfbVS2kDYNbxkw9j6FuhS) |
+
+Afterwards: `pending: []`, `spent_today: 1200000000000000000000000` (1.2 NEAR, the cap), `available_for_payouts`
+~0.73 NEAR. The dashboard showed agent key allowance ~0.9948 NEAR; an `owner.mjs status` read taken seconds after
+the two refusals showed ~0.894 NEAR, before the gas refund receipts had been applied to the allowance; a later
+`status` read gave ~0.9948 NEAR.
+
 ## Findings from the live run (fixed)
 
 | ID | Finding | Fix |

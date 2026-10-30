@@ -11,3 +11,4 @@
 *.log
 /codex_*
 __pycache__/
+/docs/SUBMISSION_DRAFT.md

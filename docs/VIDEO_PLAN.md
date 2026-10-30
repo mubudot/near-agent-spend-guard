@@ -63,3 +63,14 @@ e-mail addresses, names, IP addresses, local paths and private-key material: non
 public keys and testnet account ids appear. The file is kept outside the repository and
 has not been posted. `scripts/video/` separately renders a condensed replay of the first
 run from the recorded hashes (no new transactions).
+
+## Dashboard version (2026-10-30, replaces the 1:48 take for posting)
+
+2:07, 1080p, H.264/AAC, Piper TTS narration and burned-in captions, no music; kept outside the repository, not posted.
+Problem → architecture (the dashboard's "How it works" panel) → live dashboard before the take (policy, 0.8 NEAR
+already spent, spend-only key) → terminal: 0.1 NEAR paid, 0.3 NEAR held as request 8 → dashboard with the pending
+request and the owner's command → `approve 8` paid → `stranger.testnet` refused `E_NOT_ALLOWLISTED` → 0.1 NEAR
+refused `E_DAILY` → dashboard after (audit events, inspector decoding both refusals) → tests (26 + 76 + 9, re-run on a
+clean `git archive` of the dashboard commit) → outro. Terminal frames are rendered from the commands' real JSON output;
+dashboard frames are headless-Chrome screenshots of `npm run dashboard` taken during the take. Hashes:
+[TESTNET_RUN.md](TESTNET_RUN.md#dashboard-video-take). Fits X's 2:20 limit for standard accounts.

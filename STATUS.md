@@ -1,5 +1,20 @@
 # Status
 
+### Web dashboard (2026-10-30)
+
+`web/` (`npm run dashboard` → http://127.0.0.1:5173/): a read-only dashboard for the testnet guard, plain ES modules
+with no build step and no new dependency, served by a zero-dependency Node server bound to loopback with a strict CSP.
+It reads one consistent snapshot per refresh (policy, spent today against the daily cap, pending approvals with expiry
+and the owner's copyable approve/reject command, the agent's access keys, the on-chain audit ring) from public testnet
+RPC, refuses an RPC whose `chain_id` is not `testnet`, and has a transaction inspector that decodes refusals
+(`E_…` codes; archival RPC for older transactions) and outcomes of spend/approve calls. "How it works" diagram.
+Owner actions stay in the CLI (no wallet selector). +15 tests (`web/test/`, recorded testnet transactions as fixtures).
+Three Codex review rounds: 7 findings in round 1 (provisional tx results, unexecuted-tx outcomes, testnet gate on
+tx lookups, stale data after a config change, key-text overclaim, focus loss from 5 s re-renders, expired requests
+shown as actionable), 2 in round 2 (failed re-check dropped retry, out-of-order lookups), round 3 "No material
+issues". Live dashboard video take (5 testnet transactions): [TESTNET_RUN.md](docs/TESTNET_RUN.md#dashboard-video-take).
+New demo video (2:07, dashboard + terminal, kept outside the repository, not posted; two Codex review passes of script and frames).
+
 ## Phase 1 (local): complete. Phase 2 (testnet deploy and live demo): complete. Demo video: recorded (not posted). AI-agent mode: added and run live.
 
 ### AI-agent mode (2026-10-30)
@@ -40,11 +55,11 @@ key file, `status` shows liquidity and key allowance, README rerun fully copy-pa
 
 | Suite | Result |
 | --- | --- |
-| `cargo test` | **26 passed, 0 failed** (2026-10-30 18:40 CST, clean `git archive` of `cbb0baa` on an Ubuntu 24.04 x86_64 host, rustc 1.99.1; also the 15:40 CST release check on Linux ARM64; `src/` unchanged since phase 1) |
-| `npm test` | **61 passed, 0 failed** (re-run 2026-10-30 18:40 CST on the x86_64 host, Node 22.23.4; release check 2026-10-30: +4 for ledger locking, interrupted-run exit codes, string-only amounts, zero approval threshold; one-payment-per-invoice round: +10; bring-your-own-model round: +8 for `demo/llm/` providers; AI-agent round: +16; before: 23) |
-| `npm run test:integration` (nearcore 2.14.0 sandbox) | **9 passed (1 test + 8 on-chain subtests), 0 failed** on 2026-10-30 18:45 CST: clean `git archive` of `cbb0baa` on an Ubuntu 24.04 x86_64 host with `ulimit -n 65535` (neard needs 65,535 file descriptors; the ARM64 host earlier that day capped at 4,096 and skipped it). Same result as the phase 1 fresh-clone run. Measured gas unchanged: `on_transfer` ~2.3 Tgas small state, ~19.3 Tgas at maximum state; `spend` ~20.0 Tgas. |
+| `cargo test` | **26 passed, 0 failed** (re-run 2026-10-30 19:00 CST on a clean `git archive` of `35763b8`, x86_64 host; earlier 2026-10-30 18:40 CST, clean `git archive` of `cbb0baa` on an Ubuntu 24.04 x86_64 host, rustc 1.99.1; also the 15:40 CST release check on Linux ARM64; `src/` unchanged since phase 1) |
+| `npm test` | **76 passed, 0 failed** (61 agent/CLI + 15 dashboard; 2026-10-30 19:00 CST, clean `git archive` of `35763b8` on the Ubuntu 24.04 x86_64 host; before the dashboard: 61 passed, re-run 2026-10-30 18:40 CST on the x86_64 host, Node 22.23.4; release check 2026-10-30: +4 for ledger locking, interrupted-run exit codes, string-only amounts, zero approval threshold; one-payment-per-invoice round: +10; bring-your-own-model round: +8 for `demo/llm/` providers; AI-agent round: +16; before: 23) |
+| `npm run test:integration` (nearcore 2.14.0 sandbox) | **9 passed (1 test + 8 on-chain subtests), 0 failed** re-run 2026-10-30 19:05 CST on a clean `git archive` of `35763b8` (x86_64, after `cargo build --locked --target wasm32-unknown-unknown --release`); earlier on 2026-10-30 18:45 CST: clean `git archive` of `cbb0baa` on an Ubuntu 24.04 x86_64 host with `ulimit -n 65535` (neard needs 65,535 file descriptors; the ARM64 host earlier that day capped at 4,096 and skipped it). Same result as the phase 1 fresh-clone run. Measured gas unchanged: `on_transfer` ~2.3 Tgas small state, ~19.3 Tgas at maximum state; `spend` ~20.0 Tgas. |
 
-Total: **96 passed, 0 failed** (26 + 61 + 9), plus the live testnet run, three fresh-account
+Total: **111 passed, 0 failed** (26 + 76 + 9; 96 before the dashboard tests), plus the live testnet run, three fresh-account
 reruns (the third after the second Codex round, README blocks run unmodified under `bash -e`)
 and the recorded demo take ([TESTNET_RUN.md](docs/TESTNET_RUN.md)).
 The deployed code hash equals the WASM built from the unchanged source on the x86_64 build host (cargo registry at `/root/.cargo`; a build on another x86_64 host with the registry at `/home/hark/.cargo` gave a different hash, as expected from the embedded paths); an ARM64 rebuild differs by 189 bytes even with the registry path remapped, see README "Live on testnet".
