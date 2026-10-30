@@ -107,11 +107,11 @@ input {
 .table-wrap { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; font-size: .9rem; }
 th { text-align: left; color: var(--muted); font-weight: 500; font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; padding: .4rem .6rem; border-bottom: 1px solid var(--line); }
-td { padding: .6rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+td { padding: .6rem; overflow-wrap: anywhere; border-bottom: 1px solid var(--line); vertical-align: top; }
 .cmds { display: grid; gap: .35rem; }
 .cmd { display: flex; gap: .4rem; align-items: center; }
-.cmd code { font-size: .78rem; }
-.copy { font: inherit; font-size: .75rem; background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: .15rem .5rem; cursor: pointer; }
+.cmd code { font-size: .78rem; word-break: normal; overflow-wrap: anywhere; }
+.copy { flex: none; white-space: nowrap; font: inherit; font-size: .75rem; background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: .15rem .5rem; cursor: pointer; }
 
 .feed { list-style: none; margin: 0; padding: 0; display: grid; gap: .1rem; }
 .feed li { display: grid; grid-template-columns: 172px 1fr auto; gap: .8rem; align-items: center; padding: .45rem 0; border-bottom: 1px solid var(--line); }
@@ -173,3 +173,4 @@ footer { max-width: 1280px; margin: 0 auto; padding: 0 2rem 2rem; color: var(--m
   .feed-summary { grid-column: 1 / -1; grid-row: 2; }
 }
 #tx-hint:empty { display: none; }
+td strong { white-space: nowrap; }

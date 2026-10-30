@@ -116,6 +116,7 @@ function applyConfig(next, { pushUrl = true } = {}) {
     snapshot = null;
     snapshotKey = '';
     inspected.clear();
+    lookups.clear(); // in-flight lookups for the old config can no longer publish
     $('tx-list').replaceChildren();
     render();
   }
@@ -134,27 +135,39 @@ function txNode(hash) {
   return [...$('tx-list').children].find((n) => n.dataset.hash === hash);
 }
 
+const lookups = new Map(); // hash -> token of its newest lookup; older lookups may not publish
+let lookupSeq = 0; // global, so a token is never reused after lookups.clear()
+
 async function inspect(hash, sender) {
   const owner = snapshot?.owner;
+  const token = ++lookupSeq;
+  lookups.set(hash, token);
+  const isNewest = () => lookups.get(hash) === token;
   let node = txNode(hash);
   if (!node) {
     node = el('li', { class: 'tx tx-neutral', 'data-hash': hash }, `Looking up ${hash.slice(0, 10)}…`);
     $('tx-list').prepend(node);
   }
-  const clientAtStart = client;
   try {
     const result = await findTx(client, hash, [sender, config.agent, owner]);
-    if (client !== clientAtStart) return; // config changed meanwhile
+    if (!isNewest()) return; // superseded by a newer lookup or a config change
     const summary = summarizeTx(result, config.contract);
     inspected.set(hash, { sender, summary });
     txNode(hash)?.replaceWith(renderTx(summary));
   } catch (error) {
-    if (client !== clientAtStart) return;
+    if (!isNewest()) return;
+    const message = error instanceof Error ? error.message : 'error';
+    const known = inspected.get(hash);
+    const current = txNode(hash);
+    if (known?.summary) {
+      // Keep the last known result (and its retry on refresh); note the failed update.
+      current?.querySelector('.tx-meta')?.append(` · update failed (${message}), retrying on refresh`);
+      return;
+    }
     inspected.delete(hash);
-    const failed = txNode(hash);
-    if (failed) {
-      failed.className = 'tx tx-bad';
-      failed.textContent = `${hash.slice(0, 10)}…: not found (${error instanceof Error ? error.message : 'error'}). Pass hash@signer if another account signed it.`;
+    if (current) {
+      current.className = 'tx tx-bad';
+      current.textContent = `${hash.slice(0, 10)}…: not found (${message}). Pass hash@signer if another account signed it.`;
     }
   }
 }
