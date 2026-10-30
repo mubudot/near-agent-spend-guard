@@ -62,3 +62,34 @@ earlier commit contains them. The only identity left is the pseudonymous Git aut
 See [STATUS.md](../STATUS.md): `cargo test` 26/26, `npm test` 13/13,
 `npm run test:integration` 9/9 (1 test + 8 on-chain subtests) on nearcore 2.14.0, twice
 (second run with the cached sandbox and a leftover chain directory).
+
+## Phase 2 — 2026-10-30 (testnet deployment)
+
+### 1. Live testnet run
+
+Deployment, live demo, and the findings it surfaced (T1–T5: 0.1 NEAR key allowance too
+small for a 100 Tgas call, unstructured refusals, noisy stdout, deprecated RPC endpoint,
+missing key-install hash) are in [TESTNET_RUN.md](TESTNET_RUN.md).
+
+### 2. Codex review of the phase 2 diff — verdict `fix-first`
+
+| ID | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| P1 | high | Key files: `existsSync` + `writeFileSync` was not exclusive; a concurrent run or a dangling symlink could overwrite a key or write it outside `NEAR_KEY_DIR`. | **Fixed.** `writeFileSync(..., { flag: 'wx', mode: 0o600 })` (O_EXCL: no overwrite, no symlink follow); no pathname `chmod`. |
+| P2 | high | `JSON.parse` / `KeyPair.fromString` errors could quote secret input on stderr. | **Fixed.** Key parsing goes through `keyPairFrom` and a guarded `loadKey` with fixed messages in all three scripts; unit test asserts a marker in a bad key never appears in the error. |
+| P3 | medium | `NEAR_RPC_URL` could point at a non-testnet RPC; `networkId` does not verify the chain. | **Fixed.** Every connection calls `assertTestnetChain` (`status.chain_id === 'testnet'`) before signing or creating anything; unit tested. |
+| P4 | medium | README rerun not copy-pasteable (`<hex>`, `<request_id>` placeholders; npm install step not stated). | **Fixed.** Owner id, public key and request id are captured by a small `json` shell helper; `npm ci` named. Both blocks were then executed unmodified from the README with a fresh faucet account (TESTNET_RUN.md, rerun 2). |
+| P5 | medium | `owner.mjs approve` exited 0 even if the payout failed. | **Fixed.** Prints `payment` from the contract's events; exit 2 unless `completed`. |
+| P6 | medium | A failed faucet/create left a key file behind and blocked a retry. | **Fixed.** Inputs are validated before any write; on failure the script checks the account on chain and removes the key file only if the account does not exist (kept if it exists or the state is unknown). |
+| P7 | low | VIDEO_PLAN preflight used `status`, which showed neither liquidity nor key allowance; reserve estimate wrong (1.4 vs ~1.95 NEAR). | **Fixed.** `status` adds `balance`, `available_for_payouts` (the contract's `ensure_liquid` rule) and the agent's contract-scoped keys with allowance; VIDEO_PLAN uses the measured numbers. |
+
+Checks Codex reported as passing: single contract-signed DeployContract + `new` batch
+(confirmed read-only on chain, code hash = local WASM), policy/argument shapes, agent key
+restrictions, refusal detection against near-api-js 5.1.1's error shape, exact amounts,
+funding vs. storage, documentation consistency, privacy. No re-review round was run.
+
+### 3. Privacy scan (phase 2)
+
+Tracked and new files scanned for the author's private email/provider, real name,
+location, IP addresses, absolute workspace paths, and private-key patterns: no matches.
+Testnet keys live outside the repository; only public keys and testnet account ids appear.

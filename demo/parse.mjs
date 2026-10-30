@@ -9,11 +9,26 @@ export function parseRequest(text) {
     throw new Error('Invalid NEAR account ID');
   }
   if (!receiver.endsWith('.testnet')) throw new Error('Demo receivers must end in .testnet');
-  const [whole, fraction = ''] = decimal.split('.');
-  const amount = BigInt(whole) * YOCTO + BigInt(fraction.padEnd(24, '0'));
-  if (amount <= 0n || amount >= 2n ** 128n) throw new Error('Amount must be positive and fit u128');
+  const amount = nearToYocto(decimal);
   if (Buffer.byteLength(memo, 'utf8') > 256) throw new Error('Memo exceeds 256 UTF-8 bytes');
   return { receiver, amount: amount.toString(), memo };
+}
+
+// Exact decimal NEAR -> yoctoNEAR (1 NEAR = 10^24); no floating point, no rounding.
+export function nearToYocto(decimal) {
+  if (!/^\d+(?:\.\d{1,24})?$/.test(String(decimal))) throw new Error('Amount must be a decimal NEAR value with at most 24 decimals');
+  const [whole, fraction = ''] = String(decimal).split('.');
+  const amount = BigInt(whole) * YOCTO + BigInt(fraction.padEnd(24, '0'));
+  if (amount <= 0n || amount >= 2n ** 128n) throw new Error('Amount must be positive and fit u128');
+  return amount;
+}
+
+export const explorerTx = (hash) => `https://testnet.nearblocks.io/txns/${hash}`;
+
+// A refused spend panics in the contract; keep only the contract's error code (E_...).
+export function refusalCode(message) {
+  // RPC errors embed the panic text JSON-escaped (`...lib.rs:282:9:\\nE_DAILY`), so no \\b.
+  return /(?:^|[^A-Z_])(E_[A-Z][A-Z_]*)/.exec(String(message ?? ''))?.[1] ?? null;
 }
 
 export function testnetAccount(value, name) {
@@ -34,4 +49,15 @@ export function summarizeOutcome(result) {
   if (events.includes('transfer_succeeded')) return { accepted: true, payment: 'completed' };
   if (events.includes('transfer_failed')) return { accepted: true, payment: 'failed' };
   return { accepted: events.includes('spend_requested'), payment: 'unknown' };
+}
+
+// Fail closed unless the RPC really serves testnet (networkId alone only names the key namespace).
+export async function assertTestnetChain(provider) {
+  const { chain_id: chainId } = await provider.status();
+  if (chainId !== 'testnet') throw new Error(`RPC chain_id is ${JSON.stringify(chainId)}, not "testnet"; refusing to sign`);
+}
+
+// Parse a private key without ever echoing the input in an error message.
+export function keyPairFrom(KeyPair, secret, label) {
+  try { return KeyPair.fromString(secret); } catch { throw new Error(`${label} is not a valid ed25519 private key`); }
 }

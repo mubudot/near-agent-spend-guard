@@ -1,22 +1,41 @@
 # Status
 
-## Phase 1: complete (local). Phase 2 (testnet deploy and live demo): not started.
+## Phase 1 (local): complete. Phase 2 (testnet deploy and live demo): complete. Demo video: not recorded yet.
 
-Last verified 2026-10-30 from a **fresh clone** on a clean x86_64 Linux host
-(Ubuntu 24.04, rustup + build-essential, Node.js 24.11.1, npm 11.6.2), following only the
-README, with no extra environment variables:
+### Phase 2 — live on NEAR testnet (2026-10-29 23:39–23:49 UTC)
 
-| README step | Result |
+Contract `guard.spendguard-b31c91.testnet` (owner `spendguard-b31c91.testnet`), deployed
+and initialized in one batch transaction; code hash matches the locally built WASM. Live
+outcomes, each a testnet transaction: immediate payment below the approval threshold,
+a pending request above it that the owner approved and that then paid, and two on-chain
+refusals (`E_NOT_ALLOWLISTED`, `E_DAILY`). The README's "Rerun on testnet with your own
+accounts" steps were then run verbatim with a fresh faucet account and gave identical
+results; after the Codex review fixes, both bash blocks of that README section were
+executed unmodified from the file with another fresh faucet account, again with identical
+results. Hashes and links: [docs/TESTNET_RUN.md](docs/TESTNET_RUN.md).
+
+Live-run fixes: restricted-key gas allowance 0.1 → 1 NEAR (0.1 refused every 100 Tgas call),
+structured `refused` output with the contract error code, quiet JSON output, FastNEAR
+testnet RPC as default (the old endpoint is deprecated and rate-limits). Codex review
+fixes: exclusive 0600 key-file creation, no secret echo in errors, `chain_id == testnet`
+check before signing, `approve` reports payout settlement, failed creates clean up their
+key file, `status` shows liquidity and key allowance, README rerun fully copy-pasteable.
+
+### Tests
+
+| Suite | Result |
 | --- | --- |
-| 1. `cargo test` (rustup auto-installed the pinned Rust 1.99.1 + wasm32 target) | **26 passed, 0 failed** |
-| 2. `npm ci --ignore-scripts && npm test` | **13 passed, 0 failed** |
-| 3. Offline demo / mainnet receiver | Expected `spend` JSON / `Demo receivers must end in .testnet`, exit 1 |
-| 4. `cargo build --locked --target wasm32-unknown-unknown --release` | Passed, ~277 KB WASM |
-| 5. `npm run test:integration` (auto-downloaded nearcore 2.14.0 sandbox) | **9 passed (1 test + 8 on-chain subtests), 0 failed, 0 skipped**; a second run (cached sandbox) also 9/9 |
+| `cargo test` | **26 passed, 0 failed** (phase 1 fresh-clone run; `src/`, `Cargo.*` unchanged in phase 2) |
+| `npm test` | **17 passed, 0 failed** (4 new: exact `nearToYocto`, refusal-code/explorer helpers, testnet chain check, no key echo) |
+| `npm run test:integration` (nearcore 2.14.0 sandbox) | **9 passed (1 test + 8 on-chain subtests), 0 failed** (phase 1 fresh-clone run; test file and dependencies unchanged in phase 2) |
 
-Total: **48 passed, 0 failed.** Measured `on_transfer` callback: ~2.3 Tgas at small state and ~19 Tgas at maximum
-occupancy (budget 50 Tgas; the original 15 Tgas would have run out there). An immediate
-`spend` at maximum occupancy burns ~20 Tgas plus the ~19 Tgas callback, within 100 Tgas prepaid.
+Total: **52 passed, 0 failed**, plus the live testnet run and two fresh-account reruns.
+The Rust and sandbox suites were not re-executed in phase 2 (the build host was unreachable);
+the deployed code hash equals the WASM built from the unchanged source.
+
+Measured `on_transfer` callback: ~2.3 Tgas at small state and ~19 Tgas at maximum
+occupancy (budget 50 Tgas). An immediate `spend` at maximum occupancy burns ~20 Tgas plus
+the ~19 Tgas callback, within 100 Tgas prepaid.
 
 Review history, findings, and fixes: [docs/REVIEW_LOG.md](docs/REVIEW_LOG.md).
 Rules checklist: [docs/REQUIREMENTS_CHECK.md](docs/REQUIREMENTS_CHECK.md).
@@ -28,12 +47,12 @@ Rules checklist: [docs/REQUIREMENTS_CHECK.md](docs/REQUIREMENTS_CHECK.md).
   nearcore 2.14.0 sandbox (same release as mainnet and testnet), or `SPEND_GUARD_SANDBOX_BIN`.
 - The owner is trusted: removing and re-adding an agent resets its daily budget.
 - State is one unversioned Borsh value; a future layout change needs a migration method.
+- The testnet demo depends on public testnet services (faucet helper, FastNEAR RPC).
 - No professional audit; AI-assisted review only.
 - `npm` reports deprecated `tar@6.2.1` inside near-workspaces' dependency tree (dev only).
 
-## Phase 2 (not done)
+## Left
 
-Testnet deployment (atomic deploy + private `new`), funding, owner policy setup,
-restricted-key installation (`demo/install-key.mjs`), a live `demo/agent.mjs --submit`
-run, and the demo video. No push, public-chain deployment, real-fund transaction, or LLM
-call has been performed.
+Demo video (plan: [docs/VIDEO_PLAN.md](docs/VIDEO_PLAN.md)), making the repository public,
+the X demo post, and the submission — all by the human. No push, mainnet deployment,
+real-fund transaction, or LLM call has been performed.

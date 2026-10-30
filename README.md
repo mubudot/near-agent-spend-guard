@@ -1,7 +1,7 @@
 # NEAR Agent Spend Guard
 
 Give an AI agent a spending budget without giving it control of the wallet. This
-phase 1 prototype is a Rust NEAR contract that holds native NEAR and enforces
+prototype is a Rust NEAR contract that holds native NEAR and enforces
 owner-set policies for each agent account. A small Node demo turns a constrained
 natural-language request into a `spend` call without an AI service or API key.
 
@@ -19,6 +19,8 @@ pays for calls; the contract's policy separately limits the funds it transfers.
 - `demo/agent.mjs`: offline preview by default; explicit `--submit` uses testnet.
 - `demo/install-key.mjs`: previews a restricted key permission, or installs it on
   testnet with `--submit` using the account owner's separate credential.
+- `demo/owner.mjs`: testnet provisioning and owner actions (faucet account, sub-accounts,
+  atomic deploy + `new`, `add-agent`, `approve`/`reject`, read-only `status`).
 - `integration/guard.test.mjs`: local near-workspaces sandbox test.
 
 The contract account initializes itself (`new` is private) and names the owner. The
@@ -82,7 +84,7 @@ from the repository root. No account, key, or API token is needed.
    npm test
    ```
 
-   → See `pass 13` and `fail 0`, including exact amounts, rejected invalid input, and the
+   → See `pass 17` and `fail 0`, including exact amounts, rejected invalid input, and the
    outcome summary that tells "accepted" apart from "paid".
 
 3. Preview an agent request without credentials:
@@ -133,23 +135,109 @@ from the repository root. No account, key, or API token is needed.
    limit to 65535; on a host whose hard limit is lower the test reports an explicit skip,
    which is not evidence of on-chain success.
 
-## Deploying (phase 2)
+## Live on testnet
+
+The contract is deployed on NEAR **testnet** (no mainnet deployment, no real funds):
+
+| Role | Account |
+| --- | --- |
+| Contract (guard) | [`guard.spendguard-b31c91.testnet`](https://testnet.nearblocks.io/address/guard.spendguard-b31c91.testnet) |
+| Owner | `spendguard-b31c91.testnet` |
+| Agent (only a `spend`-restricted function-call key is used) | `agent.spendguard-b31c91.testnet` |
+| Allowlisted merchant | `shop.spendguard-b31c91.testnet` |
+
+The deployed code hash `CuJqiX8P7XpVgYRBtX3vwZuHFHJNiNE1KHmny3picmdf` is the base58
+SHA-256 of the WASM that step 4 builds from this repository. The live run (immediate
+payment, owner-approved pending payment, two on-chain refusals) with every transaction
+link is in [docs/TESTNET_RUN.md](docs/TESTNET_RUN.md).
+
+View it without any account or key (read-only RPC calls; needs the npm dependencies from step 2):
+
+```bash
+NEAR_CONTRACT_ACCOUNT=guard.spendguard-b31c91.testnet node demo/owner.mjs status agent.spendguard-b31c91.testnet
+```
+
+→ See `owner`, `paused: false`, `available_for_payouts`, the agent's `policy` (allowlist,
+caps, threshold), `spent_today` (current UTC day; resets at UTC midnight) and its single
+function-call key (`method_names: ["spend"]`, finite `allowance`).
+
+### Rerun on testnet with your own accounts
+
+Optional. Needs Node, the npm dependencies from step 2 (`npm ci --ignore-scripts`) and the
+WASM from step 4, run from the repository root in bash. The first command creates a fresh
+owner account from the public testnet faucet (free testnet NEAR, 10 NEAR) and stores its keys
+in `./.near/` (git-ignored, file mode 600). Private keys are never printed. Run all steps
+within one UTC day: pending requests expire and daily budgets reset at UTC midnight.
+
+```bash
+export NEAR_KEY_DIR=$PWD/.near
+json() { node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.parse(s)['$1']))"; }
+export NEAR_OWNER_ACCOUNT=$(node demo/owner.mjs faucet-account | json account)
+echo "$NEAR_OWNER_ACCOUNT"                    # → spendguard-<6 hex>.testnet
+export NEAR_CONTRACT_ACCOUNT=guard.$NEAR_OWNER_ACCOUNT NEAR_AGENT_ACCOUNT=agent.$NEAR_OWNER_ACCOUNT
+export SHOP=shop.$NEAR_OWNER_ACCOUNT
+node demo/owner.mjs create-account guard 6    # contract account; ~2.8 NEAR is storage stake
+node demo/owner.mjs create-account agent 0.5
+node demo/owner.mjs create-account shop 0.1
+node demo/owner.mjs deploy                    # DeployContract + new{owner} in one batch tx
+node demo/owner.mjs add-agent $NEAR_AGENT_ACCOUNT --allow $SHOP --per-tx 1 --daily 1.2 --threshold 0.2
+export NEAR_AGENT_PUBLIC_KEY=$(node demo/owner.mjs new-key agent-spend-key | json public_key)
+NEAR_AGENT_OWNER_PRIVATE_KEY=$(json private_key < "$NEAR_KEY_DIR/$NEAR_AGENT_ACCOUNT.json") \
+  node demo/install-key.mjs --submit          # FunctionCall key: receiver = guard, methods = [spend], allowance 1 NEAR
+export NEAR_AGENT_PRIVATE_KEY=$(json private_key < "$NEAR_KEY_DIR/agent-spend-key.json")
+```
+
+Each command prints JSON with the transaction hash and a testnet.nearblocks.io link. Then
+act as the agent and the owner:
+
+```bash
+npm run -s demo -- --submit "send 0.1 NEAR to $SHOP for coffee"
+# → "payment": "completed"  (below the 0.2 NEAR threshold: paid immediately)
+npm run -s demo -- --submit "send 0.5 NEAR to $SHOP for API credits" | tee "$NEAR_KEY_DIR/pending.json"
+# → "payment": "awaiting_owner_approval", "request_id": "<n>"  (0.5 NEAR reserved, not paid)
+ID=$(json request_id < "$NEAR_KEY_DIR/pending.json")
+node demo/owner.mjs approve "$ID"
+# → "action": "approve", "payment": "completed"  (exit 2 if the payout failed)
+npm run -s demo -- --submit "send 0.1 NEAR to stranger.testnet for refund"
+# → "payment": "refused", "reason": "E_NOT_ALLOWLISTED"  (exit status 3, no funds moved)
+npm run -s demo -- --submit "send 0.7 NEAR to $SHOP for second order"
+# → "payment": "refused", "reason": "E_DAILY"  (0.6 + 0.7 > 1.2 daily cap; exit status 3)
+node demo/owner.mjs status $NEAR_AGENT_ACCOUNT
+# → "pending": [], "spent_today": "600000000000000000000000" (0.6 NEAR), the policy,
+#   available_for_payouts, and the agent's spend-only key with its remaining allowance
+```
+
+All scripts use FastNEAR's public testnet RPC `https://test.rpc.fastnear.com`
+(`rpc.testnet.near.org` is deprecated and rate-limits); set `NEAR_RPC_URL` to use another.
+Every signing command first checks that the RPC reports `chain_id` `testnet`, and every
+account must end in `.testnet`. Refused requests are real failed transactions on chain:
+the contract panics with the error code and no funds move. If a create step fails, the
+script removes the new key file when the account does not exist, so the step can be
+rerun. To use an account you already have instead of the faucet, put its key file
+(`{"account_id","public_key","private_key"}`, the near-cli legacy format, e.g.
+`~/.near-credentials/testnet/<you>.testnet.json`) in `NEAR_KEY_DIR`, set
+`NEAR_OWNER_ACCOUNT` to it, and skip the `faucet-account` line.
+
+## Deploying
 
 `new` is `#[private]`: deploy and initialize in **one batch transaction signed by the
 contract account** (DeployContract + FunctionCall `new {"owner": "<owner>.testnet"}`), so
 nobody can front-run initialization. The integration test does exactly this.
-Attach 100 Tgas to `spend` and `approve`. Immediate-transfer spends and approvals reserve
+`demo/owner.mjs deploy` sends exactly this batch. Attach 100 Tgas to `spend` and `approve`.
+The agent key's gas allowance must exceed one call's prepaid gas at NEAR's pessimistic gas
+price (~0.101 NEAR for 100 Tgas on testnet; a 0.1 NEAR allowance rejects every call), so
+`install-key.mjs` defaults to 1 NEAR (`NEAR_AGENT_KEY_ALLOWANCE` overrides). Unused gas is
+refunded to the allowance; the live run used ~0.0014 NEAR of it for four calls. Immediate-transfer spends and approvals reserve
 50 Tgas for the `on_transfer` callback (pending spends schedule none). The integration test
 measures the callback at ~19 Tgas in its maximum-occupancy configuration. The expiry sweep
 (up to 16 requests) inside `spend` is not measured on chain; 150 Tgas is a conservative choice.
 
-## Scope and next phase
+## Scope
 
-Phase 1 is local. Testnet deployment, account funding, policy provisioning, key
-installation, and live submissions belong to phase 2 and have not been performed.
-`.env.example` lists the optional testnet configuration; the demo reads process
-environment variables and does not load `.env` itself. Keep private keys outside
-tracked files. The contract needs its own funded balance and storage reserve.
+Testnet only: nothing is deployed to mainnet and no real funds are used. The local
+steps 1–5 need no account. `.env.example` lists the optional testnet configuration; the
+demo reads process environment variables and does not load `.env` itself. Keep private
+keys outside tracked files (`.near/` and `.env*` are git-ignored). The contract needs its own funded balance and storage reserve.
 This prototype has not received a professional security audit; it has had AI-assisted
 review only (see [docs/REVIEW_LOG.md](docs/REVIEW_LOG.md)).
 
