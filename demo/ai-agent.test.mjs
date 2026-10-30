@@ -97,6 +97,20 @@ test('a failed spend submission stops the run (no retry) and exits 2 with the ou
   assert.equal(runExitCode(spends, run), 2);
 });
 
+for (const payment of ['failed', 'unknown']) {
+  test(`a ${payment} payout stops the run before any further spend and exits 2`, async () => {
+    let calls = 0;
+    const chain = { budget: async () => ({}), spend: async () => { calls += 1; return { payment, transaction: `tx${calls}` }; } };
+    const llm = async () => ({ stop_reason: 'tool_use', content: [{ type: 'tool_use', id: `t${calls}`, name: 'spend', input: { receiver: DEFAULT_MERCHANT, amount_near: '0.1', invoice_id: `10${calls}`, memo: 'x' } }] });
+    const run = await runAgent({ llm, task: 't', page: '', chain });
+    assert.equal(calls, 1);
+    assert.match(run.stopped, new RegExp(`payout ${payment}`));
+    const spends = summarizeSpends(run.steps);
+    assert.deepEqual(spends.map((x) => x.payment), [payment]);
+    assert.equal(runExitCode(spends, run), 2);
+  });
+}
+
 test('an LLM failure after a payment keeps the payment in the result', async () => {
   let n = 0;
   const llm = async () => {

@@ -137,7 +137,7 @@ from the repository root. No account, key, or API token is needed.
    npm test
    ```
 
-   → See `pass 76` and `fail 0`: 61 for the agent, owner CLI and AI-agent mode (exact amounts,
+   → See `pass 78` and `fail 0`: 63 for the agent, owner CLI and AI-agent mode (exact amounts,
    rejected invalid input, the outcome summary that tells "accepted" apart from "paid") and 15 for the
    dashboard (`web/test/`: formatting, view model, outcomes of recorded testnet transactions, RPC client,
    static-server path handling).

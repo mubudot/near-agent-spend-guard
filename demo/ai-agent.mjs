@@ -240,6 +240,11 @@ export async function runAgent({ llm, task, page, chain, ledger = new InvoiceLed
           steps.push({ tool: u.name, input: u.input, result });
           return { steps, final: null, turns: turn + 1, stopped: `paid-invoice ledger update failed (${error?.code ?? 'error'}); the invoice stays blocked as "submitting", check the outcome above before rerunning`, ledger_error: true };
         }
+        if (result?.payment === 'failed' || result?.payment === 'unknown') {
+          // A failed or unknown payout ends the run: the model must not get another try in the same run.
+          steps.push({ tool: u.name, input: u.input, result });
+          return { steps, final: null, turns: turn + 1, stopped: `payout ${result.payment}; run stopped so the model cannot retry, check the transaction before rerunning` };
+        }
       }
       steps.push({ tool: u.name, input: u.input, result, ...(isError ? { error: true } : {}), ...(duplicate ? { duplicate: true } : {}) });
       results.push({ type: 'tool_result', tool_use_id: u.id, content: typeof result === 'string' ? result : JSON.stringify(result), ...(isError ? { is_error: true } : {}) });
