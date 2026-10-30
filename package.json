@@ -6,6 +6,7 @@
   "engines": { "node": ">=20" },
   "scripts": {
     "demo": "node demo/agent.mjs",
+    "ai-agent": "node demo/ai-agent.mjs",
     "test": "node --test demo/*.test.mjs",
     "test:integration": "node --test integration/*.test.mjs"
   },

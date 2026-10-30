@@ -132,3 +132,17 @@ deployment works; `npm run test:integration` skipped (host nofile hard limit 4,0
 | J03 | Codex | VIDEO_PLAN balance snapshot stale (1.95 NEAR) | Updated to the post-take read (~1.34 NEAR, two takes fit). |
 | J04 | Codex | REQUIREMENTS_CHECK still said "record the video". | Now "review and post the recorded video". |
 | J05 | Codex | README library list omitted `borsh`. | Added borsh 1.8.1. |
+
+### AI-agent round (2026-10-30, ~09:45–10:30 CST)
+
+Added the optional AI-agent mode (`demo/ai-agent.mjs`, shared `demo/agent-key.mjs`), its tests, the
+prompt-injection scenario, `docs/status.html`, and one live testnet run each with the mock LLM and with Claude
+([TESTNET_RUN.md](TESTNET_RUN.md#ai-agent-mode-prompt-injection)). Codex reviewed the diff (no money-tool
+bypass, no XSS in the status page) and re-verified the fixes (all three FIXED, no new issues).
+
+| ID | Source | Finding | Fix |
+| --- | --- | --- | --- |
+| A1 | Codex (medium) | A spend whose submission threw (e.g. RPC timeout) was dropped from `spends`, so the run could exit 0 with an unknown payment outcome. | The run stops at once (the model gets no chance to retry and pay twice), the step is listed as `payment: "unknown"`, exit 2 (+1 test). |
+| A2 | Codex (medium) | An LLM error after a payment discarded the earlier steps and their transaction hashes. | The steps so far are returned and printed; exit 1 (+1 test). |
+| A3 | Codex (low) | The offline simulator lacked the contract's `E_AMOUNT` check (masked by CLI validation). | Added after the pause check, as in `validate_spend` (+1 test). |
+| A4 | Hark | Node's `fetch` ignores `HTTPS_PROXY`; behind a proxy the LLM call failed with HTTP 401. | README: set `NODE_USE_ENV_PROXY=1` (Node 22.21+); no code change. |

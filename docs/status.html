@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https:">
+<title>Agent Spend Guard — testnet status (read-only)</title>
+<style>
+  body { font: 15px/1.45 system-ui, sans-serif; max-width: 980px; margin: 2rem auto; padding: 0 1rem; color: #1b1f24; }
+  h1 { font-size: 1.4rem; margin-bottom: .2rem; } .muted { color: #5c6670; font-size: .9rem; }
+  form { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; } input { flex: 1 1 260px; padding: .35rem .5rem; font: inherit; }
+  button { padding: .35rem .9rem; font: inherit; cursor: pointer; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: .6rem; margin: 1rem 0; }
+  .card { border: 1px solid #d5dbe1; border-radius: 8px; padding: .6rem .8rem; } .card b { display: block; font-size: 1.15rem; }
+  table { border-collapse: collapse; width: 100%; font-size: .88rem; } th, td { text-align: left; padding: .3rem .4rem; border-bottom: 1px solid #e3e7eb; vertical-align: top; }
+  code, td.mono { font-family: ui-monospace, monospace; font-size: .85rem; word-break: break-all; } #err { color: #b42318; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>NEAR Agent Spend Guard — live testnet status</h1>
+<p class="muted">Read-only. This page sends view calls (<code>query</code> / <code>call_function</code>) from your browser to a public NEAR
+<strong>testnet</strong> RPC; it holds no key and cannot sign. Refused spends are failed transactions and do not appear in the audit ring;
+see <a href="TESTNET_RUN.md">TESTNET_RUN.md</a> for them.</p>
+<form id="f">
+  <input id="contract" value="guard.spendguard-b31c91.testnet" aria-label="contract account" spellcheck="false">
+  <input id="agent" value="agent.spendguard-b31c91.testnet" aria-label="agent account" spellcheck="false">
+  <input id="rpc" value="https://test.rpc.fastnear.com" aria-label="testnet RPC URL" spellcheck="false">
+  <button>Refresh</button>
+</form>
+<div id="err"></div>
+<div class="grid" id="cards"></div>
+<h2>Policy</h2><table id="policy"></table>
+<h2>Pending requests (held for owner approval)</h2><table id="pending"></table>
+<h2>Recent audit events (newest first)</h2><table id="audit"></table>
+<script>
+'use strict';
+const YOCTO = 10n ** 24n;
+const near = (y) => { const v = BigInt(y); const f = (v % YOCTO).toString().padStart(24, '0').replace(/0+$/, '').slice(0, 6); return `${v / YOCTO}${f ? '.' + f : ''} NEAR`; };
+const acct = /^[a-z0-9]+(?:[._-][a-z0-9]+)*\.testnet$/;
+let rpcUrl = '';
+async function rpc(method, params) {
+  const res = await fetch(rpcUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) });
+  const body = await res.json();
+  if (body.error) throw new Error(`${method}: ${body.error.cause?.name || body.error.name || 'RPC error'}`);
+  return body.result;
+}
+async function view(contract, method, args, block) {
+  const r = await rpc('query', { request_type: 'call_function', block_id: block, account_id: contract, method_name: method, args_base64: btoa(JSON.stringify(args)) });
+  return JSON.parse(new TextDecoder().decode(new Uint8Array(r.result)));
+}
+// Chain data (memos, account ids) is rendered with textContent only, never as HTML.
+function row(table, cells, head = false) {
+  const tr = document.createElement('tr');
+  for (const [text, mono] of cells) { const c = document.createElement(head ? 'th' : 'td'); c.textContent = text; if (mono) c.className = 'mono'; tr.appendChild(c); }
+  table.appendChild(tr);
+}
+function card(label, value) {
+  const d = document.createElement('div'); d.className = 'card';
+  const b = document.createElement('b'); b.textContent = value; d.append(label, b); document.getElementById('cards').appendChild(d);
+}
+async function load() {
+  const err = document.getElementById('err'); err.textContent = '';
+  for (const id of ['cards', 'policy', 'pending', 'audit']) document.getElementById(id).replaceChildren();
+  const contract = document.getElementById('contract').value.trim(), agent = document.getElementById('agent').value.trim();
+  rpcUrl = document.getElementById('rpc').value.trim();
+  try {
+    if (!acct.test(contract) || !acct.test(agent)) throw new Error('Accounts must be testnet account ids (…testnet)');
+    if (!/^https:\/\//.test(rpcUrl)) throw new Error('RPC URL must be https');
+    const status = await rpc('status', []);
+    if (status.chain_id !== 'testnet') throw new Error(`RPC chain_id is ${status.chain_id}, not testnet`);
+    const block = (await rpc('block', { finality: 'final' })).header.hash;
+    const [owner, paused, policy, spent, pending, audit] = await Promise.all([
+      view(contract, 'get_owner', {}, block), view(contract, 'is_paused', {}, block), view(contract, 'get_policy', { agent }, block),
+      view(contract, 'get_spent_today', { agent }, block), view(contract, 'list_pending', {}, block), view(contract, 'get_audit', { from: '0', limit: 128 }, block),
+    ]);
+    card('Owner', owner); card('Globally paused', String(paused));
+    if (!policy) { card('Agent', 'not registered'); return; }
+    card('Spent today (UTC day)', near(spent));
+    card('Left today', near(BigInt(policy.daily_max) > BigInt(spent) ? BigInt(policy.daily_max) - BigInt(spent) : 0n));
+    const p = document.getElementById('policy');
+    row(p, [['per-tx cap'], ['daily cap'], ['approval threshold'], ['agent paused'], ['allowlist']], true);
+    row(p, [[near(policy.per_tx_max)], [near(policy.daily_max)], [near(policy.approval_threshold)], [String(policy.paused)], [policy.allowlist.join(', ') || '(empty: nothing payable)', true]]);
+    const t = document.getElementById('pending');
+    row(t, [['id'], ['agent'], ['receiver'], ['amount'], ['memo']], true);
+    if (pending.length === 0) row(t, [['none']]);
+    for (const r of pending) row(t, [[r.id], [r.agent, true], [r.receiver, true], [near(r.amount)], [r.memo]]);
+    const a = document.getElementById('audit');
+    row(a, [['id'], ['time (UTC)'], ['event'], ['details']], true);
+    for (const e of audit.slice(-20).reverse()) {
+      const d = { ...e.data }; if (d.amount) d.amount = near(d.amount);
+      row(a, [[e.id], [new Date(Number(BigInt(e.timestamp) / 1000000n)).toISOString().replace('T', ' ').slice(0, 19)], [e.event], [Object.entries(d).map(([k, v]) => `${k}=${v}`).join('  '), true]]);
+    }
+  } catch (e) { err.textContent = e instanceof Error ? e.message : 'Failed'; }
+}
+document.getElementById('f').addEventListener('submit', (e) => { e.preventDefault(); load(); });
+load();
+</script>
+</body>
+</html>
