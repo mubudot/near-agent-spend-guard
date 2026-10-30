@@ -26,10 +26,10 @@ key file, `status` shows liquidity and key allowance, README rerun fully copy-pa
 | Suite | Result |
 | --- | --- |
 | `cargo test` | **26 passed, 0 failed** (final re-check 2026-10-30, fresh clone, Linux ARM64; `src/` unchanged since phase 1) |
-| `npm test` | **22 passed, 0 failed** (final re-check: +1 test for actionable account-variable errors) |
+| `npm test` | **23 passed, 0 failed** (final re-check: +2 tests: actionable account-variable errors; README rerun block stops at the first failure) |
 | `npm run test:integration` (nearcore 2.14.0 sandbox) | **9 passed (1 test + 8 on-chain subtests), 0 failed** in the phase 1 fresh-clone run on x86_64. On the 2026-10-30 ARM64 host it was **skipped** (re-confirmed in the final re-check): neard needs a file-descriptor limit of 65,535 and the host's hard limit is 4,096. Test file and contract unchanged since that run. |
 
-Total: **57 passed, 0 failed** (26 + 22 + 9), plus the live testnet run, three fresh-account
+Total: **58 passed, 0 failed** (26 + 23 + 9), plus the live testnet run, three fresh-account
 reruns (the third after the second Codex round, README blocks run unmodified under `bash -e`)
 and the recorded demo take ([TESTNET_RUN.md](docs/TESTNET_RUN.md)).
 The deployed code hash equals the WASM built from the unchanged source on the x86_64 build host (cargo registry at `/root/.cargo`); an ARM64 rebuild differs by 189 bytes even with the registry path remapped, see README "Live on testnet".

@@ -113,3 +113,22 @@ labels a failed payment `completed`. Stopped here (one re-review round, as plann
 Tracked and new files scanned for the author's private email/provider, real name,
 location, IP addresses, absolute workspace paths, and private-key patterns: no matches.
 Testnet keys live outside the repository; only public keys and testnet account ids appear.
+
+### Final re-check round (2026-10-30, ~09:00–10:00 CST)
+
+Rules re-read (https://nearhackathon.com/HACKATHON.md): unchanged. Fresh clone of `3f4ec79`, README only,
+Linux ARM64: `cargo test` 26 passed; `npm ci --ignore-scripts` + `npm test` 21 passed (now 23); demo preview and
+`.near` rejection (exit 1) as stated; WASM built (278,132 bytes here); read-only `status` of the live
+deployment works; `npm run test:integration` skipped (host nofile hard limit 4,096 < 65,535).
+
+| ID | Source | Finding | Fix |
+| --- | --- | --- | --- |
+| H1 | Hark | README said the deployed code hash is "the WASM that step 4 builds"; it is reproducible only with the build host's dependency paths (`/root/.cargo`, embedded in panic strings) on x86_64 — an ARM64 build with the path remapped has identical strings but is 189 bytes larger. | README "Live on testnet" and STATUS state exactly that, with the remap command. |
+| H2 | Hark | Missing/invalid account variables gave a terse "must be a testnet account ID". | Error now says which variable is unset and how to set it, without echoing the value (+1 test). |
+| H3 | Hark | Sibling-project line ambiguous for Q-015. | README states the PayPal project is a different hackathon, independent, no shared code; this is the only NEAR entry. |
+| H4 | Hark (upgrade) | No one-screen overview for judges. | README "At a glance": architecture diagram, attack → control table, 30-second judge quick start. |
+| J01 | Codex | Rerun block used `X=$(…) && export X` without errexit: a failed faucet call continued with an empty account. | `set -euo pipefail`, separate capture and export, run in a subshell; +1 test that runs the block with a failing faucet stub. |
+| J02 | Codex | README said `owner.mjs approve` exits 3 on an on-chain refusal; it exits 1 with the contract error. | README exit-status paragraph corrected. |
+| J03 | Codex | VIDEO_PLAN balance snapshot stale (1.95 NEAR) | Updated to the post-take read (~1.34 NEAR, two takes fit). |
+| J04 | Codex | REQUIREMENTS_CHECK still said "record the video". | Now "review and post the recorded video". |
+| J05 | Codex | README library list omitted `borsh`. | Added borsh 1.8.1. |

@@ -117,7 +117,7 @@ from the repository root. No account, key, or API token is needed.
    npm test
    ```
 
-   → See `pass 22` and `fail 0`, including exact amounts, rejected invalid input, and the
+   → See `pass 23` and `fail 0`, including exact amounts, rejected invalid input, and the
    outcome summary that tells "accepted" apart from "paid".
 
 3. Preview an agent request without credentials:
@@ -208,14 +208,17 @@ Optional. Needs Node, the npm dependencies from step 2 (`npm ci --ignore-scripts
 WASM from step 4, run from the repository root in bash. The first command creates a fresh
 owner account from the public testnet faucet (free testnet NEAR, 10 NEAR) and stores its keys
 in `./.near/` (git-ignored, file mode 600). Private keys are never printed. Run all steps
-within one UTC day: pending requests expire and daily budgets reset at UTC midnight.
+within one UTC day: pending requests expire and daily budgets reset at UTC midnight. Type `bash`
+first and paste both blocks into that shell: `set -euo pipefail` stops at the first unexpected failure,
+and then only that subshell exits.
 
 ```bash
-set -o pipefail                               # a failing command is not hidden by a pipe
+set -euo pipefail                             # stop at the first failure; no pipe hides one
 export NEAR_KEY_DIR=$PWD/.near
 # json <field>: print one field of the JSON on stdin; fixed error text, never echoes the input
 json() { node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{let v;try{v=JSON.parse(s)['$1']}catch{}if(v==null){console.error('json: no field $1 in input');process.exit(1)}console.log(v)})"; }
-NEAR_OWNER_ACCOUNT=$(node demo/owner.mjs faucet-account | json account) && export NEAR_OWNER_ACCOUNT
+NEAR_OWNER_ACCOUNT=$(node demo/owner.mjs faucet-account | json account)
+export NEAR_OWNER_ACCOUNT
 echo "$NEAR_OWNER_ACCOUNT"                    # → spendguard-<6 hex>.testnet
 export NEAR_CONTRACT_ACCOUNT=guard.$NEAR_OWNER_ACCOUNT NEAR_AGENT_ACCOUNT=agent.$NEAR_OWNER_ACCOUNT
 export SHOP=shop.$NEAR_OWNER_ACCOUNT
@@ -224,10 +227,12 @@ node demo/owner.mjs create-account agent 0.5
 node demo/owner.mjs create-account shop 0.1
 node demo/owner.mjs deploy                    # DeployContract + new{owner} in one batch tx
 node demo/owner.mjs add-agent $NEAR_AGENT_ACCOUNT --allow $SHOP --per-tx 1 --daily 1.2 --threshold 0.2
-NEAR_AGENT_PUBLIC_KEY=$(node demo/owner.mjs new-key agent-spend-key | json public_key) && export NEAR_AGENT_PUBLIC_KEY
+NEAR_AGENT_PUBLIC_KEY=$(node demo/owner.mjs new-key agent-spend-key | json public_key)
+export NEAR_AGENT_PUBLIC_KEY
 NEAR_AGENT_OWNER_PRIVATE_KEY=$(json private_key < "$NEAR_KEY_DIR/$NEAR_AGENT_ACCOUNT.json") \
   node demo/install-key.mjs --submit          # FunctionCall key: receiver = guard, methods = [spend], allowance 1 NEAR
-NEAR_AGENT_PRIVATE_KEY=$(json private_key < "$NEAR_KEY_DIR/agent-spend-key.json") && export NEAR_AGENT_PRIVATE_KEY
+NEAR_AGENT_PRIVATE_KEY=$(json private_key < "$NEAR_KEY_DIR/agent-spend-key.json")
+export NEAR_AGENT_PRIVATE_KEY
 ```
 
 Each command prints JSON with the transaction hash and a testnet.nearblocks.io link. Then
@@ -253,9 +258,11 @@ node demo/owner.mjs status $NEAR_AGENT_ACCOUNT
 Exit status of `demo/agent.mjs --submit` and `owner.mjs approve`: **0** payment
 `completed` (or, for the agent, `awaiting_owner_approval`); **2** payout `failed` or its
 outcome `unknown` (no terminal contract event; the transaction hash is printed for
-reconciliation); **3** refused on chain by the contract (`reason: E_…`, no funds moved);
-**1** any other error (bad input, missing key, RPC failure). `owner.mjs reject` and the
-provisioning commands exit 0 on success and 1 on error. The `|| test $? -eq 3` above lets the
+reconciliation); **1** any other error (bad input, missing key, RPC failure). Only the agent
+reports an on-chain refusal separately: **3** with structured JSON (`"payment": "refused"`,
+`reason: E_…`, no funds moved). An approval the contract refuses (for example `E_DAILY` or
+`E_PAUSED` after a policy change) makes `owner.mjs approve` print the contract error and exit **1**.
+`owner.mjs reject` and the provisioning commands exit 0 on success and 1 on error. The `|| test $? -eq 3` above lets the
 two expected refusals pass under `set -e`.
 
 All scripts use FastNEAR's public testnet RPC `https://test.rpc.fastnear.com`
@@ -295,7 +302,7 @@ review only (see [docs/REVIEW_LOG.md](docs/REVIEW_LOG.md)).
 
 The demo is deliberately rule-based. It makes no LLM calls and implements no LLM
 mode. AI tools used for development: Hark and OpenAI Codex (coding agents, including code
-review). Libraries: near-sdk 5.17.2 (Rust), near-api-js 5.1.1, near-workspaces 5.0.0.
+review). Libraries: near-sdk 5.17.2 and borsh 1.8.1 (Rust), near-api-js 5.1.1, near-workspaces 5.0.0.
 All code was written for this hackathon; no earlier codebase is reused.
 Rule-by-rule checklist: [docs/REQUIREMENTS_CHECK.md](docs/REQUIREMENTS_CHECK.md).
 

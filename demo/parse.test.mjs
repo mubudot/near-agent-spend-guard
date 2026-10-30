@@ -104,3 +104,19 @@ test('README json helper never echoes malformed input', () => {
   assert.equal(ok.status, 0);
   assert.equal(ok.stdout.trim(), '7');
 });
+
+test('README testnet rerun block stops at the first failure', () => {
+  const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
+  const start = readme.indexOf('### Rerun on testnet with your own accounts');
+  const block = readme.slice(readme.indexOf('```bash', start) + 7, readme.indexOf('```', readme.indexOf('```bash', start) + 7));
+  assert.match(block.trimStart(), /^set -euo pipefail/);
+  // `X=$(cmd) && export X` would hide a failed capture from errexit
+  assert.doesNotMatch(readme, /=\$\([^\n]*\) && export /);
+  const fake = mkdtempSync(join(tmpdir(), 'sg-readme-'));
+  writeFileSync(join(fake, 'node'), '#!/bin/sh\ncase "$*" in *faucet-account*) echo down >&2; exit 1;; esac\nexec "$REAL_NODE" "$@"\n', { mode: 0o755 });
+  const r = spawnSync('bash', ['-c', `${block}\necho REACHED`], {
+    cwd: fake, encoding: 'utf8', env: { ...process.env, PATH: `${fake}:${process.env.PATH}`, REAL_NODE: process.execPath },
+  });
+  assert.notEqual(r.status, 0);
+  assert.doesNotMatch(r.stdout, /REACHED/);
+});

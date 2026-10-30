@@ -14,9 +14,9 @@ accounts and agent key are already provisioned.
   node demo/owner.mjs status agent.spendguard-b31c91.testnet` shows `available_for_payouts`
   (balance minus storage stake, 65,536-byte headroom and pending reserves — the contract's
   own liquidity rule), `spent_today` (must be `0`) and the agent key's remaining `allowance`.
-  After the recorded run: ~1.95 NEAR available, ~0.9986 NEAR allowance. Each take pays out
-  0.6 testnet NEAR and uses ~0.0014 NEAR of allowance, so three takes fit; the owner tops
-  up with `node demo/owner.mjs fund 2`.
+  Before the recorded take: ~1.95 NEAR available. After it (read-only `status`, 2026-10-30):
+  ~1.34 NEAR available, ~0.9975 NEAR allowance. Each take pays out 0.6 testnet NEAR and uses
+  ~0.0014 NEAR of allowance, so two more takes fit; the owner tops up with `node demo/owner.mjs fund 2`.
 - Export the environment in a separate, unrecorded shell step (keys come from the
   key directory; never show `NEAR_AGENT_PRIVATE_KEY` or a key file on screen). Clear the
   screen afterwards. Use a large font (≥ 18 pt), 100×30 terminal, dark theme.

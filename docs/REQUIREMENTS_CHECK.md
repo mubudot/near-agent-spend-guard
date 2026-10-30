@@ -7,8 +7,8 @@ Checked against the live rules at https://nearhackathon.com/HACKATHON.md (re-rea
 | --- | --- | --- | --- |
 | 1 | Public repository by Sun 2026-11-15 07:59 CST (UTC+08:00) | ⏳ | Repo is local only. The human makes it public; never without their explicit yes. |
 | 2 | README for machine and human readers: what it is, the problem, "do X → see Y" steps, no marketing (Procedure §1, Q-017) | ✅ | README: purpose, architecture, 5 reproduction steps with expected output; verified from a fresh clone on a clean x86_64 Linux host (docs/REVIEW_LOG.md). |
-| 3 | Reproducible README (Q-012, Q-017 screening by Claude Code / Codex) | ✅ | Fresh clone + README only: no hand-set env vars, toolchain pinned by `rust-toolchain.toml`, sandbox auto-downloaded by the integration test. Final re-check 2026-10-30 (ARM64): `cargo test` 26 passed, `npm test` 22 passed, demo preview and `.near` rejection as stated, WASM builds, live `status` read works; integration skipped (host nofile limit 4096 < 65535). Code-hash claim narrowed to the x86_64 build host (README). |
-| 4 | Demo post on X saying it was built at NEAR HACKATHON, with video or screenshots (Start here §3) | ⏳ | Human records and posts. Script and recording plan: [VIDEO_PLAN.md](VIDEO_PLAN.md). A video is the safe choice (Q-012: screenshots are not enough when judges cannot open the demo); the testnet contract is viewable by anyone. |
+| 3 | Reproducible README (Q-012, Q-017 screening by Claude Code / Codex) | ✅ | Fresh clone + README only: no hand-set env vars, toolchain pinned by `rust-toolchain.toml`, sandbox auto-downloaded by the integration test. Final re-check 2026-10-30 (ARM64): `cargo test` 26 passed, `npm test` 23 passed, demo preview and `.near` rejection as stated, WASM builds, live `status` read works; integration skipped (host nofile limit 4096 < 65535). Code-hash claim narrowed to the x86_64 build host (README). |
+| 4 | Demo post on X saying it was built at NEAR HACKATHON, with video or screenshots (Start here §3) | ⏳ | Video recorded from a live testnet take (kept outside the repo); the human reviews and posts it. Script and recording plan: [VIDEO_PLAN.md](VIDEO_PLAN.md). A video is the safe choice (Q-012: screenshots are not enough when judges cannot open the demo); the testnet contract is viewable by anyone. |
 | 5 | Local-only demo acceptable; hosted demo a plus (Q-012) | ✅ | Local sandbox + offline demo, **plus** a live testnet deployment `guard.spendguard-b31c91.testnet` anyone can query ([TESTNET_RUN.md](TESTNET_RUN.md)). Keep its accounts as they are through 2026-11-18, ideally 2026-11-25 (testnet accounts do not expire; do not delete them). |
 | 6 | Testnet-only projects eligible (Q-010) | ✅ | Deployed on testnet only; scripts accept only `.testnet` accounts; `demo/parse.mjs` rejects non-`.testnet` receivers and accounts. No mainnet deploy. |
 | 7 | No mainnet deploy / signing / spending without explicit human confirmation | ✅ | None performed; only free faucet testnet NEAR was signed for. Mainnet appears only in the prize payout account the human provides. |
@@ -26,6 +26,6 @@ Checked against the live rules at https://nearhackathon.com/HACKATHON.md (re-rea
 
 ## Open before submission
 
-1. Human: record the demo video ([VIDEO_PLAN.md](VIDEO_PLAN.md)), make the repo public,
+1. Human: review and post the recorded demo video ([VIDEO_PLAN.md](VIDEO_PLAN.md)), make the repo public,
    post the X demo, confirm the submission payload. Phase 2 (testnet deploy, policy setup,
    restricted key, live `--submit` run) is done: [TESTNET_RUN.md](TESTNET_RUN.md).
