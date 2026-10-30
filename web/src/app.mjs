@@ -1,8 +1,8 @@
 // Dashboard wiring: config from the URL/form, periodic refresh, transaction inspector.
 import { createClient, loadSnapshot, findTx, DEFAULT_RPC } from './near-rpc.mjs';
-import { dashboardModel, summarizeTx, parseTxList } from './model.mjs';
-import { isTestnetAccount, isTxHash, isAccountId } from './format.mjs';
-import { el, renderKpis, renderPolicy, renderKeys, renderPending, renderEvents, renderTx } from './view.mjs';
+import { dashboardModel, summarizeTx, parseTxList, isProvisional, latestOnly } from './model.mjs';
+import { isTestnetAccount, isTxHash, isAccountId, nsToMs } from './format.mjs';
+import { el, renderKpis, renderPolicy, renderKeys, renderPending, renderEvents, renderTx, updateTimes } from './view.mjs';
 
 const DEFAULTS = {
   contract: 'guard.spendguard-b31c91.testnet',
@@ -10,6 +10,7 @@ const DEFAULTS = {
   rpc: DEFAULT_RPC,
 };
 const REFRESH_MS = 20_000;
+const EVENTS_SHOWN = 10;
 const $ = (id) => document.getElementById(id);
 
 const params = new URLSearchParams(location.search);
@@ -20,10 +21,12 @@ const config = {
 };
 let client;
 let snapshot = null;
+let snapshotKey = '';
 let lastLoadedMs = 0;
 let timer;
 let showAllEvents = false;
-let loading = false;
+const requests = latestOnly(); // a config change or a newer refresh supersedes older responses
+const inspected = new Map(); // hash -> { sender, summary | null }
 
 function showError(message) {
   $('error').textContent = message;
@@ -36,35 +39,62 @@ function validate(c) {
   return null;
 }
 
+function updateStamp() {
+  if (!snapshot) { $('updated').textContent = 'not connected'; return; }
+  const ago = Math.round((Date.now() - lastLoadedMs) / 1000);
+  $('updated').textContent = `block #${snapshot.block.height} · updated ${ago < 5 ? 'just now' : `${ago}s ago`}`;
+}
+
+// Full rebuild: only when the data changed, so focus and selection survive quiet refreshes.
 function render() {
-  if (!snapshot) return;
   const now = Date.now();
+  const sections = ['kpis', 'policy', 'keys', 'pending', 'events'];
+  if (!snapshot) {
+    for (const id of sections) $(id).replaceChildren();
+    $('more-events').hidden = true;
+    updateStamp();
+    return;
+  }
+  lastRenderMs = now;
   const m = dashboardModel(snapshot, now);
   renderKpis($('kpis'), m, now);
   renderPolicy($('policy'), m);
   renderKeys($('keys'), m);
   renderPending($('pending'), m, now);
-  renderEvents($('events'), m.events, now, { limit: showAllEvents ? m.events.length : 10 });
-  $('more-events').hidden = m.events.length <= 10;
+  renderEvents($('events'), m.events, now, { limit: showAllEvents ? m.events.length : EVENTS_SHOWN });
+  $('more-events').hidden = m.events.length <= EVENTS_SHOWN;
   $('more-events').textContent = showAllEvents ? 'Show fewer' : `Show all ${m.events.length}`;
-  const ago = Math.round((now - lastLoadedMs) / 1000);
-  $('updated').textContent = `block #${snapshot.block.height} · updated ${ago < 5 ? 'just now' : `${ago}s ago`}`;
+  updateStamp();
+}
+
+let lastRenderMs = 0;
+function tick() {
+  const now = Date.now();
+  // A request that expired since the last render changes what is actionable: rebuild once.
+  const crossed = snapshot?.pending?.some((r) => { const t = nsToMs(r.expires_at); return t > lastRenderMs && t <= now; });
+  if (crossed) { render(); return; }
+  updateTimes(document, now);
+  updateStamp();
 }
 
 async function refresh() {
-  if (loading) return;
-  loading = true;
+  const token = requests.next();
   document.body.classList.add('is-loading');
   try {
-    snapshot = await loadSnapshot(client, config);
+    const next = await loadSnapshot(client, config);
+    if (!requests.isCurrent(token)) return;
+    const { block, ...data } = next;
+    const key = JSON.stringify(data);
+    snapshot = next;
     lastLoadedMs = Date.now();
     showError('');
-    render();
+    if (key !== snapshotKey) { snapshotKey = key; render(); } else tick();
+    reinspectProvisional();
   } catch (error) {
+    if (!requests.isCurrent(token)) return;
     showError(`Could not read the guard: ${error instanceof Error ? error.message : 'unknown error'}`);
   } finally {
-    loading = false;
-    document.body.classList.remove('is-loading');
+    if (requests.isCurrent(token)) document.body.classList.remove('is-loading');
   }
 }
 
@@ -76,9 +106,19 @@ function schedule() {
 function applyConfig(next, { pushUrl = true } = {}) {
   const problem = validate(next);
   if (problem) { showError(problem); return false; }
+  const changed = Object.keys(config).some((k) => config[k] !== next[k]);
   Object.assign(config, next);
   client = createClient({ url: config.rpc });
   $('cfg-summary').textContent = `${config.contract} · agent ${config.agent}`;
+  if (changed) {
+    // Never show one guard's data under another guard's label.
+    requests.next();
+    snapshot = null;
+    snapshotKey = '';
+    inspected.clear();
+    $('tx-list').replaceChildren();
+    render();
+  }
   if (pushUrl) {
     const url = new URL(location.href);
     for (const [k, v] of Object.entries(config)) {
@@ -90,30 +130,43 @@ function applyConfig(next, { pushUrl = true } = {}) {
 }
 
 // ---- Transaction inspector --------------------------------------------------------------
-const inspected = new Map();
+function txNode(hash) {
+  return [...$('tx-list').children].find((n) => n.dataset.hash === hash);
+}
 
 async function inspect(hash, sender) {
-  if (inspected.has(hash)) return;
-  const placeholder = el('li', { class: 'tx tx-neutral' }, `Looking up ${hash.slice(0, 10)}…`);
-  $('tx-list').prepend(placeholder);
-  inspected.set(hash, placeholder);
-  try {
-    const result = await findTx(client, hash, [sender, config.agent, snapshot?.owner]);
-    const node = renderTx(summarizeTx(result, config.contract));
-    placeholder.replaceWith(node);
-    inspected.set(hash, node);
-  } catch (error) {
-    placeholder.textContent = `${hash.slice(0, 10)}…: not found (${error instanceof Error ? error.message : 'error'}). Pass hash@signer if another account signed it.`;
-    placeholder.className = 'tx tx-bad';
-    inspected.delete(hash);
+  const owner = snapshot?.owner;
+  let node = txNode(hash);
+  if (!node) {
+    node = el('li', { class: 'tx tx-neutral', 'data-hash': hash }, `Looking up ${hash.slice(0, 10)}…`);
+    $('tx-list').prepend(node);
   }
+  const clientAtStart = client;
+  try {
+    const result = await findTx(client, hash, [sender, config.agent, owner]);
+    if (client !== clientAtStart) return; // config changed meanwhile
+    const summary = summarizeTx(result, config.contract);
+    inspected.set(hash, { sender, summary });
+    txNode(hash)?.replaceWith(renderTx(summary));
+  } catch (error) {
+    if (client !== clientAtStart) return;
+    inspected.delete(hash);
+    const failed = txNode(hash);
+    if (failed) {
+      failed.className = 'tx tx-bad';
+      failed.textContent = `${hash.slice(0, 10)}…: not found (${error instanceof Error ? error.message : 'error'}). Pass hash@signer if another account signed it.`;
+    }
+  }
+}
+
+function reinspectProvisional() {
+  for (const [hash, { sender, summary }] of inspected) if (summary && isProvisional(summary)) inspect(hash, sender);
 }
 
 async function inspectList(text) {
   const items = parseTxList(text, isTxHash, isAccountId);
-  if (!items.length) { showError('Enter a transaction hash (optionally hash@signer).'); return; }
-  showError('');
-  // Oldest first so the newest ends up on top of the list.
+  $('tx-hint').textContent = items.length ? '' : 'Enter a transaction hash (optionally hash@signer).';
+  // Oldest first so the newest ends up on top of the list; a repeat hash is looked up again.
   for (const { hash, sender } of items.reverse()) await inspect(hash, sender);
 }
 
@@ -122,6 +175,7 @@ function init() {
   $('agent').value = config.agent;
   $('rpc').value = config.rpc;
   if (!applyConfig(config, { pushUrl: false })) return;
+  render();
 
   $('config').addEventListener('submit', (e) => {
     e.preventDefault();
@@ -137,7 +191,7 @@ function init() {
 
   refresh().then(() => { if (params.get('tx')) inspectList(params.get('tx')); });
   schedule();
-  setInterval(render, 5_000); // keep relative times fresh between refreshes
+  setInterval(tick, 5_000); // relative times only; the DOM is rebuilt only when data changes
 }
 
 init();

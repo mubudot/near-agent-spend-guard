@@ -172,3 +172,4 @@ footer { max-width: 1280px; margin: 0 auto; padding: 0 2rem 2rem; color: var(--m
   .feed li { grid-template-columns: 1fr auto; }
   .feed-summary { grid-column: 1 / -1; grid-row: 2; }
 }
+#tx-hint:empty { display: none; }

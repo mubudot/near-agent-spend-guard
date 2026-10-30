@@ -50,8 +50,20 @@ export function createClient({ url = DEFAULT_RPC, archivalUrl = DEFAULT_ARCHIVAL
     return JSON.parse(fromBytes(result.result));
   }
 
+  // Checked once per client; every snapshot and transaction lookup waits for it.
+  let verified;
+  function ensureTestnet() {
+    verified ??= call('status', []).then((status) => {
+      if (status.chain_id !== 'testnet') throw new Error(`RPC chain_id is "${status.chain_id}", expected "testnet"`);
+      return true;
+    });
+    verified.catch(() => { verified = undefined; }); // a network blip may be retried; a wrong chain fails again
+    return verified;
+  }
+
   // Look a transaction up; older ones are served only by archival nodes.
   async function tx(hash, sender) {
+    await ensureTestnet();
     const params = { tx_hash: hash, sender_account_id: sender, wait_until: 'NONE' };
     try {
       return await call('tx', params);
@@ -61,13 +73,12 @@ export function createClient({ url = DEFAULT_RPC, archivalUrl = DEFAULT_ARCHIVAL
     }
   }
 
-  return { call, view, tx };
+  return { call, view, tx, ensureTestnet };
 }
 
 // One consistent snapshot of the guard for one agent: every read at the same final block.
 export async function loadSnapshot(client, { contract, agent }) {
-  const status = await client.call('status', []);
-  if (status.chain_id !== 'testnet') throw new Error(`RPC chain_id is "${status.chain_id}", expected "testnet"`);
+  await client.ensureTestnet();
   const block = (await client.call('block', { finality: 'final' })).header;
   const at = block.hash;
   const [owner, paused, policy, spentToday, pending, audit, account, keyList] = await Promise.all([

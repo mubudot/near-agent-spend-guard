@@ -82,6 +82,7 @@ export function pendingView(request, nowMs, contract) {
     createdMs: nsToMs(request.created_at),
     expiresMs,
     expired: expiresMs <= nowMs,
+    expireCmd: `anyone can call expire({"request_id": "${request.id}"}) on the guard to release its reserve`,
     approveCmd: `${target}node demo/owner.mjs approve ${request.id}`,
     rejectCmd: `${target}node demo/owner.mjs reject ${request.id}`,
   };
@@ -100,6 +101,7 @@ export function summarizeKeys(keys, contract) {
         methods: fc.method_names,
         allowance: fc.allowance == null ? 'unlimited' : formatNear(fc.allowance),
         onlySpend: fc.method_names.length === 1 && fc.method_names[0] === 'spend',
+        finiteAllowance: fc.allowance != null,
       });
     } else out.other += 1;
   }
@@ -108,7 +110,8 @@ export function summarizeKeys(keys, contract) {
 
 export function dashboardModel(raw, nowMs) {
   const { contract, agent, owner, paused, policy, spentToday, pending, audit, keys, balance } = raw;
-  const model = {
+  const mine = (pending ?? []).filter((r) => !agent || r.agent === agent).map((r) => pendingView(r, nowMs, contract));
+  return {
     contract, agent, owner, paused,
     status: agentStatus(paused, policy),
     policy: policy && {
@@ -120,13 +123,13 @@ export function dashboardModel(raw, nowMs) {
     },
     budget: policy ? budget(policy, spentToday ?? '0') : null,
     resetMs: nextUtcMidnight(nowMs),
-    pending: (pending ?? []).filter((r) => !agent || r.agent === agent).map((r) => pendingView(r, nowMs, contract)),
+    pending: mine,
+    actionable: mine.filter((r) => !r.expired).length,
     otherPending: (pending ?? []).filter((r) => agent && r.agent !== agent).length,
     events: [...(audit ?? [])].sort((a, b) => Number(BigInt(b.id) - BigInt(a.id))).map(describeEvent),
     keys: keys ? summarizeKeys(keys, contract) : null,
     balance: balance == null ? null : formatNear(balance),
   };
-  return model;
 }
 
 // ---- Transaction outcomes (the RPC `tx` result) ------------------------------------------
@@ -167,6 +170,10 @@ export function summarizeTx(result, contract) {
     events: events.map(describeEvent), code: null,
   };
   const failure = result.status?.Failure;
+  const executed = failure || (result.status && 'SuccessValue' in result.status);
+  if (!executed) {
+    return { ...base, outcome: 'unconfirmed', tone: 'info', reason: 'not executed yet; refresh to update', requestId: null };
+  }
   if (failure) {
     const code = refusalCode(JSON.stringify(failure));
     return { ...base, outcome: method === 'spend' ? 'refused' : 'failed', code, tone: 'bad',
@@ -178,10 +185,19 @@ export function summarizeTx(result, contract) {
   let outcome = 'success';
   if (method === 'spend' && value?.status === 'pending') outcome = 'awaiting_owner_approval';
   else if (method === 'spend' || method === 'approve') outcome = paid ? 'completed' : payoutFailed ? 'payout_failed' : 'in_flight';
-  else if (method === 'reject') outcome = 'rejected';
+  else if (method === 'reject' && names.includes('rejected')) outcome = 'rejected';
   const tone = { completed: 'ok', awaiting_owner_approval: 'warn', payout_failed: 'bad', rejected: 'bad', in_flight: 'info' }[outcome] ?? 'neutral';
   const requestId = value?.status === 'pending' ? value.request_id : (args?.request_id ?? null);
   return { ...base, outcome, tone, requestId };
+}
+
+// Outcomes that can still change, so the inspector looks them up again on refresh.
+export const isProvisional = (summary) => summary.outcome === 'in_flight' || summary.outcome === 'unconfirmed';
+
+// Hands out tokens so only the newest request may publish its result (config changes, overlapping refreshes).
+export function latestOnly() {
+  let current = 0;
+  return { next: () => ++current, isCurrent: (token) => token === current };
 }
 
 // Parse the `?tx=` list: "hash" or "hash@sender", comma separated, validated and de-duplicated.

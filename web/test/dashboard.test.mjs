@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import {
   formatNear, percent, relativeTime, nextUtcMidnight, isTestnetAccount, isTxHash, isAccountId, shortHash, nsToMs,
 } from '../src/format.mjs';
-import { dashboardModel, describeEvent, summarizeTx, parseTxList, budget, agentStatus, summarizeKeys, refusalCode } from '../src/model.mjs';
+import { dashboardModel, describeEvent, summarizeTx, parseTxList, budget, agentStatus, summarizeKeys, refusalCode, isProvisional, latestOnly } from '../src/model.mjs';
 import { createClient, loadSnapshot, findTx, RpcError } from '../src/near-rpc.mjs';
 import { createDashboardServer, resolvePath, ROOT } from '../server.mjs';
 
@@ -72,7 +72,12 @@ test('budget, status and key summaries', () => {
   ], CONTRACT);
   assert.equal(keys.fullAccess, 1);
   assert.equal(keys.other, 1);
-  assert.deepEqual(keys.spendOnly, [{ publicKey: 'ed25519:B', methods: ['spend'], allowance: '0.9975 NEAR', onlySpend: true }]);
+  assert.deepEqual(keys.spendOnly, [{ publicKey: 'ed25519:B', methods: ['spend'], allowance: '0.9975 NEAR', onlySpend: true, finiteAllowance: true }]);
+  const broad = summarizeKeys([
+    { public_key: 'ed25519:D', access_key: { permission: { FunctionCall: { receiver_id: CONTRACT, method_names: [], allowance: null } } } },
+    { public_key: 'ed25519:E', access_key: { permission: { FunctionCall: { receiver_id: CONTRACT, method_names: ['spend', 'approve'], allowance: '1' } } } },
+  ], CONTRACT);
+  assert.deepEqual(broad.spendOnly.map((k) => [k.onlySpend, k.finiteAllowance, k.allowance]), [[false, false, 'unlimited'], [false, true, '<0.0001 NEAR']]);
 });
 
 test('dashboardModel: pending for this agent, events newest first, owner commands', () => {
@@ -104,6 +109,15 @@ test('dashboardModel: pending for this agent, events newest first, owner command
   assert.deepEqual(model.events.map((e) => e.id), ['10', '8', '7']);
   assert.equal(model.events[2].summary, `0.1 NEAR → ${SHOP} “coffee” #3`);
   assert.equal(model.events[0].tone, 'warn');
+  assert.equal(model.actionable, 1);
+
+  // After midnight the same request is retained by the contract but can no longer be approved.
+  const later = dashboardModel({ contract: CONTRACT, agent: AGENT, pending: [
+    { id: '4', agent: AGENT, receiver: SHOP, amount: NEAR(0.5), memo: 'm', created_at: ns(now), expires_at: ns(now + 1000) },
+  ] }, now + 2000);
+  assert.equal(later.pending[0].expired, true);
+  assert.equal(later.actionable, 0);
+  assert.match(later.pending[0].expireCmd, /expire\(\{"request_id": "4"\}\)/);
 });
 
 test('describeEvent handles unknown events and agent-only data', () => {
@@ -137,6 +151,38 @@ test('summarizeTx on real testnet transactions', () => {
   assert.equal(approved.method, 'approve');
   assert.equal(approved.outcome, 'completed');
   assert.equal(approved.signer, 'spendguard-b31c91.testnet');
+});
+
+test('summarizeTx: unexecuted, payout failed and reject without event are not reported as done', () => {
+  const pending = fixture('completed');
+  const unknown = { ...structuredClone(pending), status: { NotStarted: null } };
+  const u = summarizeTx(unknown, CONTRACT);
+  assert.equal(u.outcome, 'unconfirmed');
+  assert.ok(isProvisional(u));
+
+  const failedPayout = structuredClone(pending);
+  for (const r of failedPayout.receipts_outcome) r.outcome.logs = r.outcome.logs.map((l) => l.replaceAll('transfer_succeeded', 'transfer_failed'));
+  const f = summarizeTx(failedPayout, CONTRACT);
+  assert.equal(f.outcome, 'payout_failed');
+  assert.equal(f.tone, 'bad');
+  assert.ok(!isProvisional(f));
+
+  const inflight = structuredClone(pending);
+  for (const r of inflight.receipts_outcome) r.outcome.logs = r.outcome.logs.filter((l) => !l.includes('transfer_succeeded'));
+  assert.ok(isProvisional(summarizeTx(inflight, CONTRACT)));
+
+  const reject = structuredClone(fixture('approve'));
+  reject.transaction.actions[0].FunctionCall.method_name = 'reject';
+  for (const r of reject.receipts_outcome) r.outcome.logs = [];
+  assert.equal(summarizeTx(reject, CONTRACT).outcome, 'success');
+});
+
+test('latestOnly lets only the newest request publish', () => {
+  const l = latestOnly();
+  const a = l.next();
+  const b = l.next();
+  assert.ok(!l.isCurrent(a));
+  assert.ok(l.isCurrent(b));
 });
 
 test('summarizeTx ignores events logged by other contracts', () => {
@@ -191,18 +237,27 @@ test('loadSnapshot reads every value at one final block and refuses non-testnet 
 
 test('rpc client: https only, error causes, archival fallback, sender retry', async () => {
   assert.throws(() => createClient({ url: 'http://rpc.example' }), /https/);
-  const { impl, calls } = mockFetch(async (url, { params }) => {
+  const { impl, calls } = mockFetch(async (url, { method, params }) => {
+    if (method === 'status') return { result: { chain_id: 'testnet' } };
     if (url.includes('archival') && params.sender_account_id === 'spendguard-b31c91.testnet') return { result: { ok: true } };
     return { error: { cause: { name: 'UNKNOWN_TRANSACTION' } } };
   });
   const client = createClient({ fetchImpl: impl, url: 'https://rpc.example', archivalUrl: 'https://archival.example' });
-  await assert.rejects(client.call('status', []), (e) => e instanceof RpcError && e.cause === 'UNKNOWN_TRANSACTION');
+  await assert.rejects(client.call('tx', {}), (e) => e instanceof RpcError && e.cause === 'UNKNOWN_TRANSACTION');
   const found = await findTx(client, 'HASH', [null, AGENT, 'spendguard-b31c91.testnet', AGENT]);
   assert.deepEqual(found, { ok: true });
-  assert.deepEqual(calls.filter((c) => c.method === 'tx').map((c) => `${c.url}|${c.params.sender_account_id}`), [
+  assert.deepEqual(calls.filter((c) => c.method === 'tx' && c.params.sender_account_id).map((c) => `${c.url}|${c.params.sender_account_id}`), [
     `https://rpc.example|${AGENT}`, `https://archival.example|${AGENT}`,
     'https://rpc.example|spendguard-b31c91.testnet', 'https://archival.example|spendguard-b31c91.testnet',
   ]);
+  assert.equal(calls.filter((c) => c.method === 'status').length, 1); // verified once per client
+
+  // A non-testnet RPC never gets a transaction lookup (also covers ?tx= preloads).
+  const mainnet = mockFetch(async (_url, { method }) => (method === 'status' ? { result: { chain_id: 'mainnet' } } : { result: { ok: true } }));
+  const wrong = createClient({ fetchImpl: mainnet.impl, url: 'https://rpc.example' });
+  await assert.rejects(findTx(wrong, 'HASH', [AGENT]), /expected "testnet"/);
+  assert.deepEqual(mainnet.calls.map((c) => c.method), ['status']);
+
   const down = createClient({ url: 'https://rpc.example', fetchImpl: async () => { throw new TypeError('fail'); } });
   await assert.rejects(down.call('status', []), /network error/);
   const html = createClient({ url: 'https://rpc.example', fetchImpl: async () => ({ ok: false, status: 502, json: async () => { throw new Error('html'); } }) });
