@@ -46,6 +46,9 @@ owner (full-access keys)                agent (untrusted: LLM, script, bot)
   0.9 NEAR `awaiting_owner_approval` ([details](#optional-ai-agent-mode-and-a-prompt-injection-test));
 - `NEAR_CONTRACT_ACCOUNT=guard.spendguard-b31c91.testnet node demo/owner.mjs status agent.spendguard-b31c91.testnet`
   (read-only, needs internet) → the live testnet policy and the agent's spend-only key (details under [Live on testnet](#live-on-testnet)).
+- `npm run dashboard`, then open http://127.0.0.1:5173/ (read-only, needs internet, no build step) → the
+  [live dashboard](#live-dashboard-web-ui): policy, today's spend against the daily cap, pending approvals, recent
+  decisions, and a transaction inspector that shows on-chain refusals with their `E_…` code.
 Every transaction of the recorded live run is linked in [docs/TESTNET_RUN.md](docs/TESTNET_RUN.md).
 The full local reproduction is [below](#reproduce-locally-do-x--see-y).
 
@@ -63,7 +66,11 @@ The full local reproduction is [below](#reproduce-locally-do-x--see-y).
 - `demo/owner.mjs`: testnet provisioning and owner actions (faucet account, sub-accounts,
   atomic deploy + `new`, `add-agent`, `approve`/`reject`, read-only `status`).
 - `integration/guard.test.mjs`: local near-workspaces sandbox test.
-- `docs/status.html`: static read-only status page (policy, spent today, pending, audit) that queries testnet RPC from the browser.
+- `web/`: the live dashboard (`npm run dashboard`): plain ES modules, no build step, no extra dependency.
+  `web/src/near-rpc.mjs` read-only JSON-RPC client, `web/src/model.mjs` view model and transaction outcomes,
+  `web/src/view.mjs` DOM rendering (chain data as text only), `web/src/app.mjs` wiring, `web/server.mjs` loopback static server;
+  tests in `web/test/` against recorded testnet transactions.
+- `docs/status.html`: the earlier single-file read-only status page (same views, no server needed).
 
 The contract account initializes itself (`new` is private) and names the owner. The
 owner adds agents, updates policies, pauses globally
@@ -126,8 +133,10 @@ from the repository root. No account, key, or API token is needed.
    npm test
    ```
 
-   → See `pass 61` and `fail 0`, including exact amounts, rejected invalid input, the
-   outcome summary that tells "accepted" apart from "paid", and the AI-agent mode below.
+   → See `pass 74` and `fail 0`: 61 for the agent, owner CLI and AI-agent mode (exact amounts,
+   rejected invalid input, the outcome summary that tells "accepted" apart from "paid") and 13 for the
+   dashboard (`web/test/`: formatting, view model, outcomes of recorded testnet transactions, RPC client,
+   static-server path handling).
 
 3. Preview an agent request without credentials:
 
@@ -210,8 +219,50 @@ NEAR_CONTRACT_ACCOUNT=guard.spendguard-b31c91.testnet node demo/owner.mjs status
 → See `owner`, `paused: false`, `available_for_payouts`, the agent's `policy` (allowlist,
 caps, threshold), `spent_today` (current UTC day; resets at UTC midnight) and its single
 function-call key (`method_names: ["spend"]`, finite `allowance`). The same views in a browser:
-open [`docs/status.html`](docs/status.html) (a static page, served from any static host or a local
-`python3 -m http.server`; it queries the public testnet RPC and holds no key).
+use the [live dashboard](#live-dashboard-web-ui) below, or the single-file [`docs/status.html`](docs/status.html).
+
+### Live dashboard (web UI)
+
+A read-only web dashboard for the deployed guard. It runs in the browser, sends only view calls and
+transaction lookups to a public **testnet** RPC (FastNEAR; archival node for older transactions), holds no
+key and cannot sign. Owner actions stay in the CLI (`demo/owner.mjs`); the dashboard shows the exact command.
+No build step: plain ES modules served by a zero-dependency Node server bound to `127.0.0.1`.
+
+1. Start it (Node 20+; no `npm ci` needed for the dashboard itself):
+
+   ```bash
+   npm run dashboard
+   ```
+
+   → See `Agent Spend Guard dashboard (read-only, NEAR testnet): http://127.0.0.1:5173/`. Open that URL.
+   `PORT=8080 npm run dashboard` picks another port.
+
+2. Read the top row → **Agent** `Active`, **Spent today (UTC)** with a bar against the 1.2 NEAR daily cap and
+   the time until the UTC-midnight reset, **Awaiting owner approval** (count), and the guard's balance.
+
+3. Read **Policy** and **Agent key** → per-tx cap 1 NEAR, daily cap 1.2 NEAR, approval threshold 0.2 NEAR,
+   allowlist `shop.spendguard-b31c91.testnet`; the agent's function-call key with receiver = the guard,
+   methods `[spend]`, its remaining gas allowance, and the number of full-access keys (held by the account owner).
+
+4. Read **Recent decisions** → the contract's on-chain audit events, newest first, with badges:
+   `Spend requested`, `Paid`, `Held for approval`, `Approved by owner`, `Rejected by owner`, `Expired`.
+
+5. Under **Inspect a transaction**, click `not allowlisted` (or paste any guard transaction hash, `hash@signer`
+   if neither the agent nor the owner signed it) → `Refused on chain` with `E_NOT_ALLOWLISTED`,
+   `0.1 NEAR → stranger.testnet`, signed by the agent. Refusals are failed transactions and leave no audit event,
+   so this is where they show. `over daily cap` → `E_DAILY`; `paid` → `Paid`, events `spend_requested → transfer_succeeded`.
+
+6. Watch a pending request live (needs your own deployment from
+   [Rerun on testnet](#rerun-on-testnet-with-your-own-accounts), in the shell that ran its first block):
+   open the URL printed by `echo "http://127.0.0.1:5173/?contract=$NEAR_CONTRACT_ACCOUNT&agent=$NEAR_AGENT_ACCOUNT"`,
+   then run `npm run -s demo -- --submit "send 0.5 NEAR to $SHOP for API credits"`
+   → within 20 s (auto-refresh, or click Refresh) it appears under **Pending approvals** with its expiry and
+   copyable `node demo/owner.mjs approve <id>` / `reject <id>` commands; after `approve` it leaves the table and
+   **Recent decisions** shows `Approved by owner` and `Paid`.
+
+To watch your own deployment, open **Watching** at the top and enter your guard, agent and RPC (or pass
+`?contract=…&agent=…&rpc=…`; `?tx=hash1,hash2` preloads the inspector). Only `…testnet` accounts and `https`
+RPC URLs are accepted, and the page refuses an RPC whose `chain_id` is not `testnet`.
 
 ### Rerun on testnet with your own accounts
 

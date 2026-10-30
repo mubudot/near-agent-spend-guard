@@ -1,0 +1,48 @@
+{
+ "status": {
+  "SuccessValue": "eyJzdGF0dXMiOiJwZW5kaW5nIiwicmVxdWVzdF9pZCI6IjQifQ=="
+ },
+ "transaction": {
+  "actions": [
+   {
+    "FunctionCall": {
+     "args": "eyJyZWNlaXZlciI6InNob3Auc3BlbmRndWFyZC1iMzFjOTEudGVzdG5ldCIsImFtb3VudCI6IjUwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMCIsIm1lbW8iOiJtb250aGx5IEFQSSBjcmVkaXRzIn0=",
+     "deposit": "0",
+     "gas": 100000000000000,
+     "method_name": "spend"
+    }
+   }
+  ],
+  "hash": "7ZZH2pmSZsAd9esCqfitURPg5YkUeueMkyohUq9VcsD1",
+  "nonce": 275369888000008,
+  "priority_fee": 0,
+  "public_key": "ed25519:FeLXkAMYCXKZotsTtrJva6ujK8isv8DwBPcaZxGtyP1H",
+  "receiver_id": "guard.spendguard-b31c91.testnet",
+  "signer_id": "agent.spendguard-b31c91.testnet"
+ },
+ "receipts_outcome": [
+  {
+   "id": "Cf6BtBEsJq2Aw74zNruQL1C26DN5BTsERHeXg26oDTPX",
+   "outcome": {
+    "executor_id": "guard.spendguard-b31c91.testnet",
+    "logs": [
+     "EVENT_JSON:{\"data\":[{\"data\":{\"agent\":\"agent.spendguard-b31c91.testnet\",\"amount\":\"500000000000000000000000\",\"id\":\"4\",\"memo\":\"monthly API credits\",\"receiver\":\"shop.spendguard-b31c91.testnet\"},\"event\":\"spend_requested\",\"id\":\"9\",\"timestamp\":\"1793319802076600179\"}],\"event\":\"spend_requested\",\"standard\":\"agent_spend_guard\",\"version\":\"1.0.0\"}",
+     "EVENT_JSON:{\"data\":[{\"data\":{\"request_id\":\"4\"},\"event\":\"pending\",\"id\":\"10\",\"timestamp\":\"1793319802076600179\"}],\"event\":\"pending\",\"standard\":\"agent_spend_guard\",\"version\":\"1.0.0\"}"
+    ],
+    "status": {
+     "SuccessValue": "eyJzdGF0dXMiOiJwZW5kaW5nIiwicmVxdWVzdF9pZCI6IjQifQ=="
+    }
+   }
+  },
+  {
+   "id": "6xCbrtDUxD7UpYpVTwf7qBgsDwjtTogTsW2wRnNBADmn",
+   "outcome": {
+    "executor_id": "agent.spendguard-b31c91.testnet",
+    "logs": [],
+    "status": {
+     "SuccessValue": ""
+    }
+   }
+  }
+ ]
+}

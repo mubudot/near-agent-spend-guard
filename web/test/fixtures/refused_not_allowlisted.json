@@ -1,0 +1,63 @@
+{
+ "status": {
+  "Failure": {
+   "ActionError": {
+    "index": 0,
+    "kind": {
+     "FunctionCallError": {
+      "ExecutionError": "Smart contract panicked: panicked at src/lib.rs:282:9:\nE_NOT_ALLOWLISTED"
+     }
+    }
+   }
+  }
+ },
+ "transaction": {
+  "actions": [
+   {
+    "FunctionCall": {
+     "args": "eyJyZWNlaXZlciI6InN0cmFuZ2VyLnRlc3RuZXQiLCJhbW91bnQiOiIxMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAiLCJtZW1vIjoicmVmdW5kIHNjYW0ifQ==",
+     "deposit": "0",
+     "gas": 100000000000000,
+     "method_name": "spend"
+    }
+   }
+  ],
+  "hash": "CMpUbeReZQauURBwByaUZ5xcDpCzxVbvcg6LP8tUwUrJ",
+  "nonce": 275369888000009,
+  "priority_fee": 0,
+  "public_key": "ed25519:FeLXkAMYCXKZotsTtrJva6ujK8isv8DwBPcaZxGtyP1H",
+  "receiver_id": "guard.spendguard-b31c91.testnet",
+  "signer_id": "agent.spendguard-b31c91.testnet"
+ },
+ "receipts_outcome": [
+  {
+   "id": "6j1toAEmwn6qibmhg6TRB8tMcuhBzRSgCnSdM2JUvKh5",
+   "outcome": {
+    "executor_id": "guard.spendguard-b31c91.testnet",
+    "logs": [],
+    "status": {
+     "Failure": {
+      "ActionError": {
+       "index": 0,
+       "kind": {
+        "FunctionCallError": {
+         "ExecutionError": "Smart contract panicked: panicked at src/lib.rs:282:9:\nE_NOT_ALLOWLISTED"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "DcSHH2yKCMNUrsG1cPbDrLv8uuAoBC4W57E2yFXewspV",
+   "outcome": {
+    "executor_id": "agent.spendguard-b31c91.testnet",
+    "logs": [],
+    "status": {
+     "SuccessValue": ""
+    }
+   }
+  }
+ ]
+}

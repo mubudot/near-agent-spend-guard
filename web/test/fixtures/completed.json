@@ -1,0 +1,89 @@
+{
+ "status": {
+  "SuccessValue": "eyJzdGF0dXMiOiJ0cmFuc2ZlcnJpbmciLCJ0cmFuc2Zlcl9pZCI6IjMifQ=="
+ },
+ "transaction": {
+  "actions": [
+   {
+    "FunctionCall": {
+     "args": "eyJyZWNlaXZlciI6InNob3Auc3BlbmRndWFyZC1iMzFjOTEudGVzdG5ldCIsImFtb3VudCI6IjEwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMCIsIm1lbW8iOiJjb2ZmZWUifQ==",
+     "deposit": "0",
+     "gas": 100000000000000,
+     "method_name": "spend"
+    }
+   }
+  ],
+  "hash": "C6WyNnUj8NAspgs6jpAVH6A8ARCaM5R6m27rmppfQ2tn",
+  "nonce": 275369888000007,
+  "priority_fee": 0,
+  "public_key": "ed25519:FeLXkAMYCXKZotsTtrJva6ujK8isv8DwBPcaZxGtyP1H",
+  "receiver_id": "guard.spendguard-b31c91.testnet",
+  "signer_id": "agent.spendguard-b31c91.testnet"
+ },
+ "receipts_outcome": [
+  {
+   "id": "91jum3GZnxkPNL2nbTEym7fPNXBaTjj24R1Qou8V8rcr",
+   "outcome": {
+    "executor_id": "guard.spendguard-b31c91.testnet",
+    "logs": [
+     "EVENT_JSON:{\"data\":[{\"data\":{\"agent\":\"agent.spendguard-b31c91.testnet\",\"amount\":\"100000000000000000000000\",\"id\":\"3\",\"memo\":\"coffee\",\"receiver\":\"shop.spendguard-b31c91.testnet\"},\"event\":\"spend_requested\",\"id\":\"7\",\"timestamp\":\"1793319797100706189\"}],\"event\":\"spend_requested\",\"standard\":\"agent_spend_guard\",\"version\":\"1.0.0\"}"
+    ],
+    "status": {
+     "SuccessValue": "eyJzdGF0dXMiOiJ0cmFuc2ZlcnJpbmciLCJ0cmFuc2Zlcl9pZCI6IjMifQ=="
+    }
+   }
+  },
+  {
+   "id": "4SXF6ruCgca5aAahx4bJC21Hm2pDQSDJEPGYe76sF658",
+   "outcome": {
+    "executor_id": "shop.spendguard-b31c91.testnet",
+    "logs": [],
+    "status": {
+     "SuccessValue": ""
+    }
+   }
+  },
+  {
+   "id": "HvzJg8PCN1QNJBabXo6jM9Nn7AktrzoyyooWgCFtXuFX",
+   "outcome": {
+    "executor_id": "agent.spendguard-b31c91.testnet",
+    "logs": [],
+    "status": {
+     "SuccessValue": ""
+    }
+   }
+  },
+  {
+   "id": "DJSCjcqeJi811MJKhKQ2Ff7GTu8jPN3vCw9G48CtP5Wb",
+   "outcome": {
+    "executor_id": "guard.spendguard-b31c91.testnet",
+    "logs": [
+     "EVENT_JSON:{\"data\":[{\"data\":{\"agent\":\"agent.spendguard-b31c91.testnet\",\"amount\":\"100000000000000000000000\",\"transfer_id\":\"3\"},\"event\":\"transfer_succeeded\",\"id\":\"8\",\"timestamp\":\"1793319798378035491\"}],\"event\":\"transfer_succeeded\",\"standard\":\"agent_spend_guard\",\"version\":\"1.0.0\"}"
+    ],
+    "status": {
+     "SuccessValue": "dHJ1ZQ=="
+    }
+   }
+  },
+  {
+   "id": "81eqRJrDSqKZnoF5NZFqiRq4jt8TAzwhFhFHW7bkwkFr",
+   "outcome": {
+    "executor_id": "agent.spendguard-b31c91.testnet",
+    "logs": [],
+    "status": {
+     "SuccessValue": ""
+    }
+   }
+  },
+  {
+   "id": "8ZSjmaqSXRQLQwAyhEnHNRNU3A9NZjKf7JhWjftjd7hh",
+   "outcome": {
+    "executor_id": "agent.spendguard-b31c91.testnet",
+    "logs": [],
+    "status": {
+     "SuccessValue": ""
+    }
+   }
+  }
+ ]
+}

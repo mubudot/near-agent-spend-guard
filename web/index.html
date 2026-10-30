@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https:; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Agent Spend Guard · testnet dashboard</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="styles.css">
+<script type="module" src="src/app.mjs"></script>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2 4 6.5v8.2C4 22.3 9.2 28 16 30c6.8-2 12-7.7 12-15.3V6.5L16 2Z"/><path class="tick" d="m10.5 16 3.8 3.8 7.4-7.6"/></svg>
+    <div>
+      <h1>Agent Spend Guard</h1>
+      <p>An AI agent's budget, enforced by a NEAR contract</p>
+    </div>
+  </div>
+  <div class="top-right">
+    <span class="badge badge-info">NEAR testnet</span>
+    <span class="badge badge-neutral">read-only · holds no keys</span>
+    <span class="live"><i></i><span id="updated">connecting…</span></span>
+    <label class="auto"><input type="checkbox" id="auto" checked> auto-refresh</label>
+    <button id="refresh" type="button" class="btn">Refresh</button>
+  </div>
+</header>
+
+<main>
+  <details class="config">
+    <summary><span>Watching</span> <code id="cfg-summary"></code></summary>
+    <form id="config">
+      <label>Guard contract <input id="contract" spellcheck="false" autocomplete="off"></label>
+      <label>Agent account <input id="agent" spellcheck="false" autocomplete="off"></label>
+      <label>Testnet RPC <input id="rpc" spellcheck="false" autocomplete="off"></label>
+      <button class="btn" type="submit">Apply</button>
+    </form>
+  </details>
+
+  <div id="error" class="alert" role="alert" hidden></div>
+
+  <section id="kpis" class="kpis" aria-label="summary"></section>
+
+  <div class="grid">
+    <section class="card">
+      <h2>Policy <small>set by the owner, enforced on chain</small></h2>
+      <div id="policy"></div>
+    </section>
+    <section class="card">
+      <h2>Agent key <small>what the agent can sign</small></h2>
+      <div id="keys"></div>
+    </section>
+  </div>
+
+  <section class="card">
+    <h2>Pending approvals <small>above the approval threshold: funds reserved, nothing paid until the owner decides</small></h2>
+    <div id="pending" class="table-wrap"></div>
+  </section>
+
+  <div class="grid">
+    <section class="card">
+      <h2>Recent decisions <small>on-chain audit events</small></h2>
+      <div id="events"></div>
+      <button id="more-events" class="link-btn" type="button" hidden></button>
+    </section>
+    <section class="card">
+      <h2>Inspect a transaction <small>including refusals</small></h2>
+      <form id="tx-form" class="tx-form">
+        <input id="tx-input" placeholder="transaction hash (or hash@signer)" spellcheck="false" autocomplete="off" aria-label="transaction hash">
+        <button class="btn" type="submit">Inspect</button>
+      </form>
+      <p class="examples">Recorded demo take:
+        <button type="button" data-example="C6WyNnUj8NAspgs6jpAVH6A8ARCaM5R6m27rmppfQ2tn">paid</button>
+        <button type="button" data-example="7ZZH2pmSZsAd9esCqfitURPg5YkUeueMkyohUq9VcsD1">held</button>
+        <button type="button" data-example="CxeyidAH9VPyz5YUVfrtLCCa7F8FWim5ayHuBUE5QtR6">approved</button>
+        <button type="button" data-example="CMpUbeReZQauURBwByaUZ5xcDpCzxVbvcg6LP8tUwUrJ">not allowlisted</button>
+        <button type="button" data-example="AoooFQrDUfw8T7Tybrju6KreaQFomcxuuMCYcvEHx5UN">over daily cap</button>
+      </p>
+      <ol id="tx-list" class="tx-list"></ol>
+    </section>
+  </div>
+
+  <section class="card how">
+    <h2>How it works</h2>
+    <svg class="diagram" viewBox="0 0 1120 300" role="img" aria-labelledby="how-title how-desc">
+      <title id="how-title">Spend flow</title>
+      <desc id="how-desc">The agent calls spend with a function-call key. The guard contract checks pause, allowlist, per-transaction cap and daily cap. Small amounts are paid immediately, larger ones wait for owner approval, anything else is refused and no funds move.</desc>
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" class="arrowhead"/></marker>
+      </defs>
+      <g class="node">
+        <rect x="10" y="95" width="200" height="120" rx="14"/>
+        <text x="110" y="128" class="t-title">AI agent</text>
+        <text x="110" y="150" class="t-sub">untrusted: LLM, script, bot</text>
+        <text x="110" y="180" class="t-mono">function-call key</text>
+        <text x="110" y="198" class="t-mono">methods = [spend]</text>
+      </g>
+      <path d="M212 155H318" class="edge" marker-end="url(#arrow)"/>
+      <text x="265" y="143" class="t-edge">spend()</text>
+
+      <g class="node node-guard">
+        <rect x="322" y="40" width="300" height="230" rx="16"/>
+        <text x="472" y="72" class="t-title">Guard contract</text>
+        <text x="472" y="92" class="t-sub">holds the NEAR · checks in order</text>
+        <g class="checks">
+          <text x="350" y="128">1  not paused</text>
+          <text x="350" y="158">2  receiver on allowlist</text>
+          <text x="350" y="188">3  amount ≤ per-tx cap</text>
+          <text x="350" y="218">4  within daily cap</text>
+        </g>
+        <text x="472" y="252" class="t-sub">accepted spends → events + audit ring</text>
+      </g>
+
+      <path d="M624 95C700 95 700 70 776 70" class="edge edge-ok" marker-end="url(#arrow)"/>
+      <path d="M624 155H776" class="edge edge-warn" marker-end="url(#arrow)"/>
+      <path d="M624 225C700 225 700 255 776 255" class="edge edge-bad" marker-end="url(#arrow)"/>
+
+      <g class="out out-ok"><rect x="780" y="40" width="330" height="60" rx="12"/>
+        <text x="800" y="66" class="t-out">≤ approval threshold → paid now</text>
+        <text x="800" y="86" class="t-sub-l">transfer to the merchant, same transaction</text></g>
+      <g class="out out-warn"><rect x="780" y="122" width="330" height="66" rx="12"/>
+        <text x="800" y="148" class="t-out">above threshold → owner decides</text>
+        <text x="800" y="168" class="t-sub-l">funds reserved · owner approves or rejects</text></g>
+      <g class="out out-bad"><rect x="780" y="222" width="330" height="66" rx="12"/>
+        <text x="800" y="248" class="t-out">any check fails → refused</text>
+        <text x="800" y="268" class="t-sub-l">failed transaction, E_… code, no funds move</text></g>
+    </svg>
+    <ol class="how-steps">
+      <li><strong>The owner keeps the keys.</strong> They register the agent with caps, an allowlist and an approval threshold, and fund the guard.</li>
+      <li><strong>The agent gets one narrow key.</strong> It can call <code>spend</code> on the guard and nothing else, with a finite gas allowance.</li>
+      <li><strong>The contract decides.</strong> A mistaken or prompt-injected agent can only ask; every limit is checked on chain, and this page shows the result.</li>
+    </ol>
+  </section>
+</main>
+
+<footer>
+  Reads public testnet RPC only (view calls and transaction lookups). Owner actions run from the repository CLI (<code>demo/owner.mjs</code>). Testnet only · MIT.
+</footer>
+</body>
+</html>

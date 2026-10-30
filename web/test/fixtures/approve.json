@@ -1,0 +1,89 @@
+{
+ "status": {
+  "SuccessValue": "IjQi"
+ },
+ "transaction": {
+  "actions": [
+   {
+    "FunctionCall": {
+     "args": "eyJyZXF1ZXN0X2lkIjoiNCJ9",
+     "deposit": "0",
+     "gas": 100000000000000,
+     "method_name": "approve"
+    }
+   }
+  ],
+  "hash": "CxeyidAH9VPyz5YUVfrtLCCa7F8FWim5ayHuBUE5QtR6",
+  "nonce": 275369371000007,
+  "priority_fee": 0,
+  "public_key": "ed25519:5uJ5yvJMrTP6vHXyjWgGhMdm2XR2Xt23mCwPdPdiLVBy",
+  "receiver_id": "guard.spendguard-b31c91.testnet",
+  "signer_id": "spendguard-b31c91.testnet"
+ },
+ "receipts_outcome": [
+  {
+   "id": "3gLqhrCbsQjCCvS6bixz1q3NxWKHJhvcqG9jCSj7Fri9",
+   "outcome": {
+    "executor_id": "guard.spendguard-b31c91.testnet",
+    "logs": [
+     "EVENT_JSON:{\"data\":[{\"data\":{\"request_id\":\"4\"},\"event\":\"approved\",\"id\":\"11\",\"timestamp\":\"1793319805323214368\"}],\"event\":\"approved\",\"standard\":\"agent_spend_guard\",\"version\":\"1.0.0\"}"
+    ],
+    "status": {
+     "SuccessValue": "IjQi"
+    }
+   }
+  },
+  {
+   "id": "AstM1EaYNciB2n1PgWwmkbqxwNLYbi7Qh8BFNF7UJp9q",
+   "outcome": {
+    "executor_id": "shop.spendguard-b31c91.testnet",
+    "logs": [],
+    "status": {
+     "SuccessValue": ""
+    }
+   }
+  },
+  {
+   "id": "DTKHSNsEHCyMhb6cn6udpZDxtNZAh3Juz6xqiEqDpo6p",
+   "outcome": {
+    "executor_id": "spendguard-b31c91.testnet",
+    "logs": [],
+    "status": {
+     "SuccessValue": ""
+    }
+   }
+  },
+  {
+   "id": "7GNsXNcF3uha42hVZ4SUWcoY447nQYecZ2pQdcdkZfnz",
+   "outcome": {
+    "executor_id": "guard.spendguard-b31c91.testnet",
+    "logs": [
+     "EVENT_JSON:{\"data\":[{\"data\":{\"agent\":\"agent.spendguard-b31c91.testnet\",\"amount\":\"500000000000000000000000\",\"transfer_id\":\"4\"},\"event\":\"transfer_succeeded\",\"id\":\"12\",\"timestamp\":\"1793319806251115952\"}],\"event\":\"transfer_succeeded\",\"standard\":\"agent_spend_guard\",\"version\":\"1.0.0\"}"
+    ],
+    "status": {
+     "SuccessValue": "dHJ1ZQ=="
+    }
+   }
+  },
+  {
+   "id": "CiJQPRHBqdCUcBHHukJusX7F1aGCMocmHBpXych2JYGX",
+   "outcome": {
+    "executor_id": "spendguard-b31c91.testnet",
+    "logs": [],
+    "status": {
+     "SuccessValue": ""
+    }
+   }
+  },
+  {
+   "id": "AV5i7BaD8CkHiCGaFMpdNnzs6Sj4LwoFdkkuigqJ5g3t",
+   "outcome": {
+    "executor_id": "spendguard-b31c91.testnet",
+    "logs": [],
+    "status": {
+     "SuccessValue": ""
+    }
+   }
+  }
+ ]
+}
