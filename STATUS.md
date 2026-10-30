@@ -4,7 +4,7 @@
 
 ### AI-agent mode (2026-10-30)
 
-`demo/ai-agent.mjs`: an LLM (Anthropic Messages API, or a deterministic offline mock that obeys every
+`demo/ai-agent.mjs`: an LLM (Anthropic Messages API, any OpenAI-compatible Chat Completions endpoint via `demo/llm/`, or a deterministic offline mock that obeys every
 injected instruction) drives the agent through the same `spend`-only function-call key; `spend` is its only
 money tool and arguments are format-checked only, so the contract decides. Scripted prompt-injection scenario
 (hidden text on a merchant page asking for 0.5 NEAR to `stranger.testnet` and 0.9 NEAR "priority processing").
@@ -37,10 +37,10 @@ key file, `status` shows liquidity and key allowance, README rerun fully copy-pa
 | Suite | Result |
 | --- | --- |
 | `cargo test` | **26 passed, 0 failed** (final re-check 2026-10-30, fresh clone, Linux ARM64; `src/` unchanged since phase 1) |
-| `npm test` | **39 passed, 0 failed** (AI-agent round: +16 tests for `demo/ai-agent.mjs` and the shared key check; before: 23) |
+| `npm test` | **47 passed, 0 failed** (bring-your-own-model round: +8 for `demo/llm/` providers; AI-agent round: +16; before: 23) |
 | `npm run test:integration` (nearcore 2.14.0 sandbox) | **9 passed (1 test + 8 on-chain subtests), 0 failed** in the phase 1 fresh-clone run on x86_64. On the 2026-10-30 ARM64 host it was **skipped** (re-confirmed in the final re-check): neard needs a file-descriptor limit of 65,535 and the host's hard limit is 4,096. Test file and contract unchanged since that run. |
 
-Total: **74 passed, 0 failed** (26 + 39 + 9), plus the live testnet run, three fresh-account
+Total: **82 passed, 0 failed** (26 + 47 + 9), plus the live testnet run, three fresh-account
 reruns (the third after the second Codex round, README blocks run unmodified under `bash -e`)
 and the recorded demo take ([TESTNET_RUN.md](docs/TESTNET_RUN.md)).
 The deployed code hash equals the WASM built from the unchanged source on the x86_64 build host (cargo registry at `/root/.cargo`); an ARM64 rebuild differs by 189 bytes even with the registry path remapped, see README "Live on testnet".
@@ -67,4 +67,4 @@ Rules checklist: [docs/REQUIREMENTS_CHECK.md](docs/REQUIREMENTS_CHECK.md).
 
 Reviewing and posting the demo video (recorded from a live take, kept outside the repository; [docs/VIDEO_PLAN.md](docs/VIDEO_PLAN.md)), making the repository public,
 the X demo post, and the submission — all by the human. No push, mainnet deployment, or
-real-fund transaction has been performed. LLM use: one live AI-agent run (4 model calls) plus three tiny connectivity checks.
+real-fund transaction has been performed. LLM use: one live AI-agent run (4 model calls) plus three tiny connectivity checks. Bring-your-own-model round: one offline-guard smoke run per provider (Anthropic Messages, OpenAI-compatible), no testnet calls.

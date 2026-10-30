@@ -53,6 +53,7 @@ The full local reproduction is [below](#reproduce-locally-do-x--see-y).
 - `demo/agent.mjs`: offline preview by default; explicit `--submit` uses testnet.
 - `demo/agent-key.mjs`: the shared testnet path (restricted-key check, `spend`, outcome).
 - `demo/ai-agent.mjs`: optional AI-agent mode (LLM or deterministic mock) with a prompt-injection scenario.
+- `demo/llm/`: the pluggable models for it: deterministic mock, Anthropic Messages, OpenAI-compatible Chat Completions.
 - `demo/install-key.mjs`: previews a restricted key permission, or installs it on
   testnet with `--submit` using the account owner's separate credential.
 - `demo/owner.mjs`: testnet provisioning and owner actions (faucet account, sub-accounts,
@@ -121,7 +122,7 @@ from the repository root. No account, key, or API token is needed.
    npm test
    ```
 
-   → See `pass 39` and `fail 0`, including exact amounts, rejected invalid input, the
+   → See `pass 47` and `fail 0`, including exact amounts, rejected invalid input, the
    outcome summary that tells "accepted" apart from "paid", and the AI-agent mode below.
 
 3. Preview an agent request without credentials:
@@ -312,11 +313,34 @@ honest page (one 0.1 NEAR payment). Exit status **0**: refusals and held request
 
 With `--submit` the same calls go to the testnet contract (env as in the rerun section:
 `NEAR_AGENT_ACCOUNT`, `NEAR_CONTRACT_ACCOUNT`, `NEAR_AGENT_PRIVATE_KEY`; `AI_AGENT_MERCHANT` names the
-merchant, default `shop.spendguard-b31c91.testnet`). With `--llm anthropic` a real model decides, through
-the Anthropic Messages API: set `ANTHROPIC_API_KEY` (or `ANTHROPIC_AUTH_TOKEN`), optionally
-`ANTHROPIC_BASE_URL` for a compatible endpoint and `AI_AGENT_MODEL` (default `claude-sonnet-5-5`). Behind an
-HTTP proxy, Node 22.21+ needs `NODE_USE_ENV_PROXY=1` to use `HTTPS_PROXY`. Credentials are read from the
-environment only and never printed.
+merchant, default `shop.spendguard-b31c91.testnet`). With `--llm anthropic` or `--llm openai` a real
+model decides (see below). Behind an HTTP proxy, Node 22.21+ needs `NODE_USE_ENV_PROXY=1` to use
+`HTTPS_PROXY`. Credentials are read from the environment only and never printed.
+
+### Bring your own model
+
+`--llm` (or `LLM_PROVIDER`) picks the model: `mock` (default), `anthropic`, `openai`, or `auto` (anthropic
+if an Anthropic credential is set, else openai if `OPENAI_API_KEY` is set, else the mock). Both real
+providers (`demo/llm/`) get the same three tools, and `spend` still goes through the restricted key to the
+contract, so whichever model you plug in, the contract decides.
+
+```bash
+# (a) Anthropic Messages API, or any Messages-compatible endpoint
+ANTHROPIC_API_KEY=sk-ant-… npm run -s ai-agent -- --llm anthropic --scenario injection
+#   optional: ANTHROPIC_BASE_URL=<Messages-compatible base URL> ANTHROPIC_AUTH_TOKEN=… (Bearer)  AI_AGENT_MODEL=claude-sonnet-5-5
+
+# (b) OpenAI-compatible Chat Completions with tool calling
+OPENAI_API_KEY=sk-… OPENAI_MODEL=<model id> npm run -s ai-agent -- --llm openai --scenario injection     # OpenAI
+OPENAI_BASE_URL=https://openrouter.ai/api/v1 OPENAI_API_KEY=sk-or-… OPENAI_MODEL=<provider/model> \
+  npm run -s ai-agent -- --llm openai --scenario injection                                               # OpenRouter
+OPENAI_BASE_URL=http://localhost:11434/v1 OPENAI_MODEL=<local model with tool support> \
+  npm run -s ai-agent -- --llm openai --scenario injection                                               # Ollama (no key)
+#   DeepSeek, vLLM or a gateway: set OPENAI_BASE_URL to its /v1 base (default https://api.openai.com/v1).
+#   Newer OpenAI models: OPENAI_MAX_TOKENS_PARAM=max_completion_tokens (or none).
+```
+
+Add `--submit` to send the model's `spend` calls to testnet. Upstream errors are reduced to a known error
+type and a short message; configured secrets and key-like tokens are withheld or masked.
 
 Live on testnet ([TESTNET_RUN.md](docs/TESTNET_RUN.md#ai-agent-mode-prompt-injection)): the hijacked mock's
 three spends gave `completed`, `E_NOT_ALLOWLISTED` and `E_DAILY` (that day's budget was already partly used);
@@ -347,7 +371,7 @@ This prototype has not received a professional security audit; it has had AI-ass
 review only (see [docs/REVIEW_LOG.md](docs/REVIEW_LOG.md)).
 
 The default demo (`demo/agent.mjs`) is deliberately rule-based and makes no LLM calls. The optional
-AI-agent mode calls an LLM only with `--llm anthropic`; its default mock is offline and deterministic. AI tools used for development: Hark and OpenAI Codex (coding agents, including code
+AI-agent mode calls an LLM only with `--llm anthropic|openai|auto` (or `LLM_PROVIDER`); its default mock is offline and deterministic. AI tools used for development: Hark and OpenAI Codex (coding agents, including code
 review). Libraries: near-sdk 5.17.2 and borsh 1.8.1 (Rust), near-api-js 5.1.1, near-workspaces 5.0.0.
 All code was written for this hackathon; no earlier codebase is reused.
 Rule-by-rule checklist: [docs/REQUIREMENTS_CHECK.md](docs/REQUIREMENTS_CHECK.md).

@@ -5,25 +5,32 @@
 //
 //   node demo/ai-agent.mjs --scenario injection                  # mock LLM, simulated guard (offline)
 //   node demo/ai-agent.mjs --scenario injection --submit         # mock LLM, real testnet contract
-//   node demo/ai-agent.mjs --llm anthropic --scenario injection  # real LLM (needs an API credential)
+//   node demo/ai-agent.mjs --llm anthropic --scenario injection  # Anthropic Messages API (needs a credential)
+//   node demo/ai-agent.mjs --llm openai --scenario injection     # any OpenAI-compatible endpoint
 //
 // The mock LLM is deterministic and deliberately gullible: it obeys every payment instruction it
 // reads, including injected ones. It stands in for a compromised model so the demo needs no key.
 import { pathToFileURL } from 'node:url';
+import { ANTHROPIC_DEFAULT_MODEL } from './llm/anthropic.mjs';
+import { LLM_CHOICES, anthropicLlm, createLlm, mockLlm, openaiLlm, selectProvider } from './llm/index.mjs';
 import { nearToYocto, paymentExitCode, testnetAccount } from './parse.mjs';
 
+export { anthropicLlm, mockLlm, openaiLlm, selectProvider };
+
 export const DEFAULT_MERCHANT = 'shop.spendguard-b31c91.testnet';
-export const DEFAULT_MODEL = 'claude-sonnet-5-5';
+export const DEFAULT_MODEL = ANTHROPIC_DEFAULT_MODEL;
 const YOCTO = 10n ** 24n;
 
-export const USAGE = `Usage: node demo/ai-agent.mjs [--scenario coffee|injection | --task "<text>"] [--llm mock|anthropic] [--submit]
+export const USAGE = `Usage: node demo/ai-agent.mjs [--scenario coffee|injection | --task "<text>"] [--llm mock|anthropic|openai|auto] [--submit]
   --scenario  scripted task + merchant page (default: injection)
   --task      your own task; the merchant page is the coffee page
-  --llm       mock (default, deterministic, offline) or anthropic (Messages API)
+  --llm       mock (default unless LLM_PROVIDER is set; deterministic, offline), anthropic (Messages API),
+              openai (any OpenAI-compatible Chat Completions endpoint) or auto (pick from the credential set)
   --submit    send spend calls to NEAR testnet with the restricted agent key
               (otherwise a local simulator of the deployed policy answers them)
-Env: AI_AGENT_MERCHANT (default ${DEFAULT_MERCHANT}); for --llm anthropic: ANTHROPIC_API_KEY or
-ANTHROPIC_AUTH_TOKEN, optional ANTHROPIC_BASE_URL, AI_AGENT_MODEL (default ${DEFAULT_MODEL});
+Env: AI_AGENT_MERCHANT (default ${DEFAULT_MERCHANT}); LLM_PROVIDER (same values as --llm);
+for anthropic: ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN, optional ANTHROPIC_BASE_URL, AI_AGENT_MODEL (default ${DEFAULT_MODEL});
+for openai: OPENAI_MODEL, OPENAI_API_KEY (optional for local servers), optional OPENAI_BASE_URL (default https://api.openai.com/v1);
 for --submit: NEAR_AGENT_ACCOUNT, NEAR_CONTRACT_ACCOUNT, NEAR_AGENT_PRIVATE_KEY (as for demo/agent.mjs).`;
 
 // ---------------------------------------------------------------- scenarios (untrusted content)
@@ -131,53 +138,7 @@ export async function testnetChain(env = process.env) {
 
 // ---------------------------------------------------------------- language models
 
-// Deterministic, offline, gullible: reads the page, then issues one spend per payment
-// instruction it finds anywhere in the page (injected text included), then summarizes.
-const INSTRUCTION = /\b(?:send|pay|transfer)\s+(\d+(?:\.\d{1,24})?)\s+NEAR\s+to\s+([a-z0-9]+(?:[._-][a-z0-9]+)*)(?:\s+for\s+([^.\n]+))?/gi;
-export function mockLlm() {
-  return async ({ messages }) => {
-    const results = messages.flatMap((m) => (Array.isArray(m.content) ? m.content : [])).filter((b) => b.type === 'tool_result');
-    const calls = messages.flatMap((m) => (m.role === 'assistant' && Array.isArray(m.content) ? m.content : [])).filter((b) => b.type === 'tool_use');
-    const n = calls.length;
-    const use = (name, input) => ({ stop_reason: 'tool_use', content: [{ type: 'tool_use', id: `mock_${n + 1}`, name, input }] });
-    if (n === 0) return use('read_merchant_page', {});
-    const page = String(results.find((r) => r.tool_use_id === 'mock_1')?.content ?? '');
-    const plan = [...page.matchAll(INSTRUCTION)].map(([, amount, receiver, memo]) => ({ receiver, amount_near: amount, memo: (memo ?? 'payment').trim() }));
-    const done = calls.filter((c) => c.name === 'spend').length;
-    if (done < plan.length) return use('spend', plan[done]);
-    const lines = calls.filter((c) => c.name === 'spend').map((c) => {
-      const r = String(results.find((x) => x.tool_use_id === c.id)?.content ?? '');
-      return `${c.input.amount_near} NEAR to ${c.input.receiver}: ${r}`;
-    });
-    return { stop_reason: 'end_turn', content: [{ type: 'text', text: `[mock LLM] Followed every payment instruction on the page:\n${lines.join('\n')}` }] };
-  };
-}
-
-// Anthropic Messages API. Credentials come only from the environment and are never printed.
-export function anthropicLlm({ env = process.env, fetchImpl = globalThis.fetch } = {}) {
-  const base = (env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com').replace(/\/+$/, '');
-  const headers = { 'content-type': 'application/json', 'anthropic-version': '2023-06-01' };
-  if (env.ANTHROPIC_API_KEY) headers['x-api-key'] = env.ANTHROPIC_API_KEY;
-  else if (env.ANTHROPIC_AUTH_TOKEN) headers.authorization = `Bearer ${env.ANTHROPIC_AUTH_TOKEN}`;
-  else throw new Error('Set ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN for --llm anthropic (or use the default --llm mock)');
-  const model = env.AI_AGENT_MODEL || DEFAULT_MODEL;
-  const llm = async ({ system, messages, tools }) => {
-    let res;
-    try {
-      res = await fetchImpl(`${base}/v1/messages`, { method: 'POST', headers, body: JSON.stringify({ model, max_tokens: 1024, system, tools, messages }), signal: AbortSignal.timeout(90_000) });
-    } catch {
-      throw new Error('LLM request failed (network error)');
-    }
-    const body = await res.json().catch(() => null);
-    if (!res.ok || !body) throw new Error(`LLM request failed: HTTP ${res.status}${body?.error?.type ? ` (${body.error.type})` : ''}`);
-    llm.usage.input_tokens += body.usage?.input_tokens ?? 0;
-    llm.usage.output_tokens += body.usage?.output_tokens ?? 0;
-    return { stop_reason: body.stop_reason, content: body.content ?? [] };
-  };
-  llm.model = model;
-  llm.usage = { input_tokens: 0, output_tokens: 0 };
-  return llm;
-}
+// Providers live in demo/llm/ (mock, anthropic, openai-compatible); see demo/llm/index.mjs.
 
 // ---------------------------------------------------------------- agent loop
 
@@ -206,6 +167,7 @@ export async function runAgent({ llm, task, page, chain, maxTurns = 8, maxSpends
       try {
         if (u.name === 'read_merchant_page') result = page;
         else if (u.name === 'get_budget') result = await chain.budget();
+        else if (u.input?._invalid_arguments === true) throw new Error('tool arguments were not a valid JSON object; call the tool again with valid JSON');
         else if (u.name === 'spend') {
           if (spends >= maxSpends) throw new Error(`spend limit of ${maxSpends} calls per run reached`);
           args = spendArgs(u.input);
@@ -247,7 +209,7 @@ export function runExitCode(spends, run) {
 }
 
 export function parseCli(argv) {
-  const opts = { scenario: null, task: null, llm: 'mock', submit: false };
+  const opts = { scenario: null, task: null, llm: null, submit: false };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === '--submit') opts.submit = true;
@@ -257,7 +219,7 @@ export function parseCli(argv) {
     } else throw new Error(`Unknown argument ${JSON.stringify(a)}\n${USAGE}`);
   }
   if (opts.scenario && opts.task) throw new Error(`Use --scenario or --task, not both\n${USAGE}`);
-  if (!['mock', 'anthropic'].includes(opts.llm)) throw new Error(`--llm must be mock or anthropic\n${USAGE}`);
+  if (opts.llm !== null && !LLM_CHOICES.includes(opts.llm)) throw new Error(`--llm must be ${LLM_CHOICES.join(', ')}\n${USAGE}`);
   return opts;
 }
 
@@ -266,12 +228,13 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
   const merchant = testnetAccount(env.AI_AGENT_MERCHANT || DEFAULT_MERCHANT, 'AI_AGENT_MERCHANT');
   const s = scenario(opts.task ? 'coffee' : opts.scenario || 'injection', merchant);
   const task = opts.task ?? s.task;
-  const llm = opts.llm === 'anthropic' ? anthropicLlm({ env }) : mockLlm();
+  const provider = selectProvider(opts.llm || env.LLM_PROVIDER || 'mock', env);
+  const llm = createLlm(provider, { env });
   const chain = opts.submit ? await testnetChain(env) : new SimulatedGuard({ merchant });
   const run = await runAgent({ llm, task, page: s.page, chain });
   const out = {
     mode: opts.submit ? 'testnet' : 'offline-simulated-guard',
-    llm: opts.llm === 'anthropic' ? { provider: 'anthropic', model: llm.model, usage: llm.usage } : { provider: 'mock' },
+    llm: provider === 'mock' ? { provider: 'mock' } : { provider, model: llm.model, usage: llm.usage },
     scenario: opts.task ? 'custom-task' : opts.scenario || 'injection',
     task,
     ...run,

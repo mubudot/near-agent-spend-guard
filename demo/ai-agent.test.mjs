@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { DEFAULT_MERCHANT, SimulatedGuard, TOOLS, anthropicLlm, mockLlm, parseCli, runAgent, runExitCode, scenario, spendArgs, summarizeSpends, toNear } from './ai-agent.mjs';
 import { isSpendOnlyKey } from './agent-key.mjs';
 
@@ -118,24 +118,25 @@ test('anthropic client: env credentials, base URL override, no secret in errors'
   assert.throws(() => anthropicLlm({ env: {} }), /ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN/);
   const seen = [];
   const fetchImpl = async (url, init) => { seen.push({ url, init }); return { ok: true, status: 200, json: async () => ({ stop_reason: 'end_turn', content: [{ type: 'text', text: 'hi' }], usage: { input_tokens: 5, output_tokens: 2 } }) }; };
-  const llm = anthropicLlm({ env: { ANTHROPIC_AUTH_TOKEN: 'tok-secret', ANTHROPIC_BASE_URL: 'https://llm.example/' }, fetchImpl });
+  const llm = anthropicLlm({ env: { ANTHROPIC_AUTH_TOKEN: 'tok-secret', ANTHROPIC_BASE_URL: 'http://localhost:8080/' }, fetchImpl });
   const r = await llm({ system: 's', messages: [{ role: 'user', content: 'x' }], tools: TOOLS });
   assert.equal(r.content[0].text, 'hi');
-  assert.equal(seen[0].url, 'https://llm.example/v1/messages');
+  assert.equal(seen[0].url, 'http://localhost:8080/v1/messages');
   assert.equal(seen[0].init.headers.authorization, 'Bearer tok-secret');
   const body = JSON.parse(seen[0].init.body);
   assert.equal(body.model, 'claude-sonnet-5-5');
   assert.deepEqual(llm.usage, { input_tokens: 5, output_tokens: 2 });
   const key = anthropicLlm({ env: { ANTHROPIC_API_KEY: 'key-secret' }, fetchImpl: async (url, init) => { seen.push({ url, init }); return { ok: false, status: 401, json: async () => ({ error: { type: 'authentication_error', message: 'bad key-secret' } }) }; } });
-  await assert.rejects(key({ system: 's', messages: [], tools: [] }), (e) => !e.message.includes('secret') && /HTTP 401/.test(e.message));
+  await assert.rejects(key({ system: 's', messages: [], tools: [] }), (e) => !e.message.includes('key-secret') && /HTTP 401: authentication_error \(message withheld/.test(e.message));
   assert.equal(seen[1].url, 'https://api.anthropic.com/v1/messages');
   assert.equal(seen[1].init.headers['x-api-key'], 'key-secret');
 });
 
 test('CLI parsing', () => {
-  assert.deepEqual(parseCli([]), { scenario: null, task: null, llm: 'mock', submit: false });
-  assert.deepEqual(parseCli(['--scenario', 'coffee', '--submit']), { scenario: 'coffee', task: null, llm: 'mock', submit: true });
-  assert.throws(() => parseCli(['--llm', 'gpt']), /mock or anthropic/);
+  assert.deepEqual(parseCli([]), { scenario: null, task: null, llm: null, submit: false });
+  assert.deepEqual(parseCli(['--scenario', 'coffee', '--submit']), { scenario: 'coffee', task: null, llm: null, submit: true });
+  assert.equal(parseCli(['--llm', 'openai']).llm, 'openai');
+  assert.throws(() => parseCli(['--llm', 'gpt']), /mock, anthropic, openai, auto/);
   assert.throws(() => parseCli(['--scenario', 'coffee', '--task', 'x']), /not both/);
   assert.throws(() => parseCli(['--bogus']), /Unknown argument/);
   assert.throws(() => scenario('nope'), /Unknown scenario/);
@@ -170,8 +171,8 @@ test('agent key check accepts only a spend-only function-call key with finite al
   assert.equal(isSpendOnlyKey(k({ receiver_id: 'x.testnet', method_names: ['spend'], allowance: '1' }), 'g.testnet'), false);
 });
 
-test('the repository names LLM credentials only by environment variable', () => {
-  const src = readFileSync('demo/ai-agent.mjs', 'utf8');
-  const hosts = [...src.matchAll(/https:\/\/([a-z0-9.-]+)/g)].map((m) => m[1]);
-  assert.deepEqual([...new Set(hosts)], ['api.anthropic.com']);
+test('the repository names LLM credentials only by environment variable; only official default hosts', () => {
+  const files = ['demo/ai-agent.mjs', ...readdirSync('demo/llm').filter((f) => f.endsWith('.mjs')).map((f) => `demo/llm/${f}`)];
+  const hosts = files.flatMap((f) => [...readFileSync(f, 'utf8').matchAll(/https:\/\/([a-z0-9.-]+)/g)].map((m) => m[1]));
+  assert.deepEqual([...new Set(hosts)].sort(), ['api.anthropic.com', 'api.openai.com']);
 });

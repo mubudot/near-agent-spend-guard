@@ -146,3 +146,20 @@ bypass, no XSS in the status page) and re-verified the fixes (all three FIXED, n
 | A2 | Codex (medium) | An LLM error after a payment discarded the earlier steps and their transaction hashes. | The steps so far are returned and printed; exit 1 (+1 test). |
 | A3 | Codex (low) | The offline simulator lacked the contract's `E_AMOUNT` check (masked by CLI validation). | Added after the pause check, as in `validate_spend` (+1 test). |
 | A4 | Hark | Node's `fetch` ignores `HTTPS_PROXY`; behind a proxy the LLM call failed with HTTP 401. | README: set `NODE_USE_ENV_PROXY=1` (Node 22.21+); no code change. |
+
+## Bring your own model (2026-10-30)
+
+`demo/llm/`: the mock (moved from `demo/ai-agent.mjs`), Anthropic Messages, and any OpenAI-compatible Chat
+Completions endpoint with tool calling (`--llm openai` / `LLM_PROVIDER`, `OPENAI_BASE_URL`, `OPENAI_API_KEY`,
+`OPENAI_MODEL`); `--llm auto` picks from the credential set, and the default stays the offline mock. Errors from
+both providers now carry a known error type and a redacted message (same rules as the PayPal project). Tests:
+`demo/llm-providers.test.mjs`. Live smoke, offline simulated guard, one run per provider (`claude-sonnet-5-5`
+through a gateway serving both formats): both refused to follow the injection; the Anthropic-format run paid the
+0.1 NEAR invoice **twice** (two identical `spend` calls in successive turns, both within the caps), which the
+contract would also accept. Per-invoice idempotency is not part of the policy; the daily cap bounds such repeats.
+
+| ID | Source | Finding | Fix |
+| --- | --- | --- | --- |
+| B1 | Codex (low) | Missing / null tool arguments became `{}` silently, other non-objects were partly accepted. | `toolArguments`: JSON objects only, blank = no arguments, anything else marked and refused before a tool runs (+test). |
+| B2 | Codex (low) | Placeholder hosts in a test and the README. | `localhost` / `<Messages-compatible base URL>`. |
+| B3 | Hark | Odd response shapes (non-numeric usage, non-object tool calls) were not all handled explicitly. | Defensive parsing; malformed replies are an LLM error, which keeps the steps so far (+test). |
