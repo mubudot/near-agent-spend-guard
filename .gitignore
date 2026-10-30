@@ -10,3 +10,4 @@
 /codex_phase1.log
 *.log
 /codex_*
+__pycache__/
