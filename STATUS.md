@@ -40,14 +40,14 @@ key file, `status` shows liquidity and key allowance, README rerun fully copy-pa
 
 | Suite | Result |
 | --- | --- |
-| `cargo test` | **26 passed, 0 failed** (release check 2026-10-30 15:40 CST, fresh clone, Linux ARM64; `src/` unchanged since phase 1) |
-| `npm test` | **61 passed, 0 failed** (release check 2026-10-30: +4 for ledger locking, interrupted-run exit codes, string-only amounts, zero approval threshold; one-payment-per-invoice round: +10; bring-your-own-model round: +8 for `demo/llm/` providers; AI-agent round: +16; before: 23) |
-| `npm run test:integration` (nearcore 2.14.0 sandbox) | **9 passed (1 test + 8 on-chain subtests), 0 failed** in the phase 1 fresh-clone run on x86_64. On the 2026-10-30 ARM64 host it was **skipped** (re-confirmed in the final re-check): neard needs a file-descriptor limit of 65,535 and the host's hard limit is 4,096. Test file and contract unchanged since that run. |
+| `cargo test` | **26 passed, 0 failed** (2026-10-30 18:40 CST, clean `git archive` of `cbb0baa` on an Ubuntu 24.04 x86_64 host, rustc 1.99.1; also the 15:40 CST release check on Linux ARM64; `src/` unchanged since phase 1) |
+| `npm test` | **61 passed, 0 failed** (re-run 2026-10-30 18:40 CST on the x86_64 host, Node 22.23.4; release check 2026-10-30: +4 for ledger locking, interrupted-run exit codes, string-only amounts, zero approval threshold; one-payment-per-invoice round: +10; bring-your-own-model round: +8 for `demo/llm/` providers; AI-agent round: +16; before: 23) |
+| `npm run test:integration` (nearcore 2.14.0 sandbox) | **9 passed (1 test + 8 on-chain subtests), 0 failed** on 2026-10-30 18:45 CST: clean `git archive` of `cbb0baa` on an Ubuntu 24.04 x86_64 host with `ulimit -n 65535` (neard needs 65,535 file descriptors; the ARM64 host earlier that day capped at 4,096 and skipped it). Same result as the phase 1 fresh-clone run. Measured gas unchanged: `on_transfer` ~2.3 Tgas small state, ~19.3 Tgas at maximum state; `spend` ~20.0 Tgas. |
 
 Total: **96 passed, 0 failed** (26 + 61 + 9), plus the live testnet run, three fresh-account
 reruns (the third after the second Codex round, README blocks run unmodified under `bash -e`)
 and the recorded demo take ([TESTNET_RUN.md](docs/TESTNET_RUN.md)).
-The deployed code hash equals the WASM built from the unchanged source on the x86_64 build host (cargo registry at `/root/.cargo`); an ARM64 rebuild differs by 189 bytes even with the registry path remapped, see README "Live on testnet".
+The deployed code hash equals the WASM built from the unchanged source on the x86_64 build host (cargo registry at `/root/.cargo`; a build on another x86_64 host with the registry at `/home/hark/.cargo` gave a different hash, as expected from the embedded paths); an ARM64 rebuild differs by 189 bytes even with the registry path remapped, see README "Live on testnet".
 
 Measured `on_transfer` callback: ~2.3 Tgas at small state and ~19 Tgas at maximum
 occupancy (budget 50 Tgas). An immediate `spend` at maximum occupancy burns ~20 Tgas plus
