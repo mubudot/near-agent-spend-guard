@@ -98,6 +98,25 @@ transaction (request 2) of this run is not listed: its output went through
 (request 3: [5vdj54Qa…](https://testnet.nearblocks.io/txns/5vdj54QambG6APNH1sqhWibKcowqHBwQU5vYbSCXuYaA)
 → `awaiting_owner_approval`, approve [bSEJaeu9…](https://testnet.nearblocks.io/txns/bSEJaeu9ch2PrinZKk4SfuJ98YSN6GBeq7mTg4YMbYW) → `payment: completed`).
 
+**Rerun 3** (2026-10-30 00:20–00:22 UTC, after the second Codex round): both bash blocks
+of the updated README section (`set -o pipefail`, guarded `json` helper, `|| test $? -eq 3`
+on the two refusals) were extracted from the file and run unmodified with `bash -e` in a
+copy of the working tree, owner `spendguard-b506b3.testnet`. Exit status 0.
+
+| Step | Transaction |
+| --- | --- |
+| `create-account guard 6` / `agent 0.5` / `shop 0.1` | [2FWG4mPG…](https://testnet.nearblocks.io/txns/2FWG4mPGW8pWqML7uybRkaoRJQ5EEReysQZQJZrCwXgx) · [DpF2XYRW…](https://testnet.nearblocks.io/txns/DpF2XYRWbxW3KAGs7iVXcozgeJKArAcKScGdgyhKrSVP) · [9kSxpwbo…](https://testnet.nearblocks.io/txns/9kSxpwboYgpscP5f1YKAtFsPjcFSbuW1DR1ecpp5kWHJ) |
+| `deploy` | [7g2y29Yo…](https://testnet.nearblocks.io/txns/7g2y29YoLwn3fkM2gNmfbJ2kXBR59TGjom2ptZSxX68K) |
+| `add-agent` | [EXKdWptu…](https://testnet.nearblocks.io/txns/EXKdWptuvYE2HpVV5XZ41XdTjxxi4Wu9gn41TqfsUGT2) |
+| `install-key.mjs --submit` | [5ndZfEhL…](https://testnet.nearblocks.io/txns/5ndZfEhLD2AGS7C8jgE8JDCHqugUndQ7ZZZGibwYsMiy) |
+| 0.1 NEAR → `completed` | [2TfQ6c9Z…](https://testnet.nearblocks.io/txns/2TfQ6c9ZEeQE7rjXHeY3TjzH9XgG9ggfDcGNSTYWZ2ZB) |
+| 0.5 NEAR → `awaiting_owner_approval`, request 2 | [HkcEeAAm…](https://testnet.nearblocks.io/txns/HkcEeAAmXdCrxYc4NoYkBb9NFTXX47PG4fV93SgY29Sz) |
+| `approve 2` → `payment: completed` | [DTw5uD1E…](https://testnet.nearblocks.io/txns/DTw5uD1EuX3Xq2oEyreDDwmYCNsqyKvrwdRWortC5KHn) |
+| `stranger.testnet` → `refused E_NOT_ALLOWLISTED` | [5HmC4XaV…](https://testnet.nearblocks.io/txns/5HmC4XaVMg2mvdfV9mS84Q4E5XGRhigLXaYDvD84XCBZ) |
+| 0.7 NEAR → `refused E_DAILY` | [E3XPdvFt…](https://testnet.nearblocks.io/txns/E3XPdvFtxUvQ2psdj7tPEqNgE1zcTGhutUe7ZWw7FPxv) |
+
+Final `status`: `pending: []`, `spent_today: 600000000000000000000000`. Identical outcomes.
+
 Explorer pages were opened in a browser on 2026-10-30: the immediate-payment transaction
 shows Success (`spend`, agent → guard), the stranger refusal shows Failed with
 `E_NOT_ALLOWLISTED`, and the guard account page shows the deployed contract (279.07 kB storage).

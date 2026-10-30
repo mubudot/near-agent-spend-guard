@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assertTestnetChain, explorerTx, keyPairFrom, nearToYocto, parseRequest, refusalCode, summarizeOutcome, testnetAccount } from './parse.mjs';
+import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { assertTestnetChain, explorerTx, keyPairFrom, nearToYocto, parseRequest, paymentExitCode, publicKeyFrom, refusalCode, setAsideKey, summarizeOutcome, testnetAccount } from './parse.mjs';
 
 test('offline request produces exact yoctoNEAR and memo', () => {
   assert.deepEqual(parseRequest('send 0.1 NEAR to shop.testnet for coffee'), {
@@ -52,4 +56,42 @@ test('invalid private key errors never echo the input', async () => {
   const secret = 'ed25519:SECRET-MARKER-not-a-key';
   assert.throws(() => keyPairFrom(KeyPair, secret, 'NEAR_AGENT_PRIVATE_KEY'), (e) => !e.message.includes('SECRET-MARKER'));
   assert.throws(() => keyPairFrom(KeyPair, 'secp999:SECRET-MARKER', 'X'), (e) => !e.message.includes('SECRET-MARKER'));
+});
+test('public key input: a pasted private key is rejected without echo; a public key is normalized', async () => {
+  const { KeyPair, utils } = await import('near-api-js');
+  const kp = KeyPair.fromRandom('ed25519');
+  const secret = kp.toString();
+  assert.throws(() => publicKeyFrom(utils.PublicKey, secret, 'NEAR_AGENT_PUBLIC_KEY'), (e) => !e.message.includes(secret.slice(8, 30)));
+  assert.throws(() => publicKeyFrom(utils.PublicKey, 'ed25519:SECRET-MARKER', 'X'), (e) => !e.message.includes('SECRET-MARKER'));
+  assert.throws(() => publicKeyFrom(utils.PublicKey, undefined, 'X'));
+  assert.equal(publicKeyFrom(utils.PublicKey, kp.getPublicKey().toString(), 'X'), kp.getPublicKey().toString());
+});
+test('exit status: only completed or held-for-approval is success; unknown and failed exit 2', () => {
+  assert.equal(paymentExitCode('completed'), 0);
+  assert.equal(paymentExitCode('awaiting_owner_approval'), 0);
+  assert.equal(paymentExitCode('failed'), 2);
+  assert.equal(paymentExitCode('unknown'), 2);
+});
+test('failed create never deletes a key: it is moved aside, and never over an existing file', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sg-key-'));
+  writeFileSync(join(dir, 'a.testnet.json'), '{"private_key":"k1"}', { mode: 0o600 });
+  assert.equal(setAsideKey(dir, 'a.testnet', 'x'), 'a.testnet.json.unconfirmed-x');
+  assert.deepEqual(readdirSync(dir), ['a.testnet.json.unconfirmed-x']);
+  assert.equal(readFileSync(join(dir, 'a.testnet.json.unconfirmed-x'), 'utf8'), '{"private_key":"k1"}');
+  writeFileSync(join(dir, 'a.testnet.json'), '{"private_key":"k2"}', { mode: 0o600 });
+  assert.throws(() => setAsideKey(dir, 'a.testnet', 'x'), /EEXIST/);
+  assert.equal(readFileSync(join(dir, 'a.testnet.json.unconfirmed-x'), 'utf8'), '{"private_key":"k1"}');
+  assert.equal(readFileSync(join(dir, 'a.testnet.json'), 'utf8'), '{"private_key":"k2"}');
+});
+test('README json helper never echoes malformed input', () => {
+  const helper = readFileSync(new URL('../README.md', import.meta.url), 'utf8').split('\n').find((l) => l.startsWith('json()'));
+  assert.ok(helper, 'json helper present in README');
+  const run = (input, field) => spawnSync('bash', ['-c', `${helper}\njson ${field}`], { input, encoding: 'utf8' });
+  const bad = run('ed25519:SECRET-MARKER-not-json', 'private_key');
+  assert.notEqual(bad.status, 0);
+  assert.ok(!bad.stderr.includes('SECRET-MARKER') && !bad.stdout.includes('SECRET-MARKER'));
+  assert.notEqual(run('{"other":1}', 'request_id').status, 0);
+  const ok = run('{"request_id":"7"}', 'request_id');
+  assert.equal(ok.status, 0);
+  assert.equal(ok.stdout.trim(), '7');
 });

@@ -1,4 +1,4 @@
-import { assertTestnetChain, explorerTx, keyPairFrom, nearToYocto, testnetAccount } from './parse.mjs';
+import { assertTestnetChain, explorerTx, keyPairFrom, nearToYocto, publicKeyFrom, testnetAccount } from './parse.mjs';
 
 // Gas allowance only: it caps what the key can burn on gas, not what the contract pays out.
 // NEAR charges the allowance for the full prepaid gas at a pessimistic price, so one 100 Tgas
@@ -8,8 +8,9 @@ const ALLOWANCE = process.env.NEAR_AGENT_KEY_ALLOWANCE || '1';
 try {
   const agent = testnetAccount(process.env.NEAR_AGENT_ACCOUNT, 'NEAR_AGENT_ACCOUNT');
   const contract = testnetAccount(process.env.NEAR_CONTRACT_ACCOUNT, 'NEAR_CONTRACT_ACCOUNT');
-  const publicKey = process.env.NEAR_AGENT_PUBLIC_KEY;
-  if (!publicKey?.startsWith('ed25519:')) throw new Error('Set NEAR_AGENT_PUBLIC_KEY to the agent public key');
+  const { utils } = await import('near-api-js');
+  // Validated and normalized before any output: a private key pasted here is never printed.
+  const publicKey = publicKeyFrom(utils.PublicKey, process.env.NEAR_AGENT_PUBLIC_KEY, 'NEAR_AGENT_PUBLIC_KEY');
   const allowance = nearToYocto(ALLOWANCE);
   if (!process.argv.includes('--submit')) {
     console.log(JSON.stringify({ account: agent, publicKey, permission: { receiver_id: contract, method_names: ['spend'], allowance: allowance.toString() } }, null, 2));

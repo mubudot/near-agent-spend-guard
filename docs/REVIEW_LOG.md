@@ -54,8 +54,8 @@ provider, real name, location, tunnel URLs, IP addresses (including the test hos
 private-key and token patterns, and absolute workspace paths. Findings, all removed:
 the test host's IP and workspace paths in STATUS.md, the container-only helper scripts,
 and two internal task-brief files. History was rewritten locally (never pushed) so no
-earlier commit contains them. The only identity left is the pseudonymous Git author
-`mubudot <349922873+mubudot@users.noreply.github.com>`. `.env.example` has empty values.
+earlier commit contains them. The only identity left is the pseudonymous Git author `mubudot` (a GitHub
+no-reply address in commit metadata, not in any tracked file). `.env.example` has empty values.
 
 ### 5. Final results (fresh clone, README only, clean x86_64 host)
 
@@ -86,7 +86,27 @@ missing key-install hash) are in [TESTNET_RUN.md](TESTNET_RUN.md).
 Checks Codex reported as passing: single contract-signed DeployContract + `new` batch
 (confirmed read-only on chain, code hash = local WASM), policy/argument shapes, agent key
 restrictions, refusal detection against near-api-js 5.1.1's error shape, exact amounts,
-funding vs. storage, documentation consistency, privacy. No re-review round was run.
+funding vs. storage, documentation consistency, privacy.
+
+### 2b. Codex re-review of the phase 2 diff (round 2, `ee5ced3..8976d22`) — verdict `fix-first`
+
+Fix verification: P1 and P3 verified; P2, P4, P5, P6, P7 partially fixed, with the gaps
+below. New findings, all fixed with tests (`npm test` 17 → 21):
+
+| ID | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| R1-1 | high | After an uncertain create (timeout after broadcast, unclear faucet reply), cleanup deleted the key when the account was absent at the final block; the account could still be created later with its only key gone. | **Fixed.** The key is never deleted: an absent account moves the file aside to `<name>.json.unconfirmed-<random>` via `link` + `unlink` (never overwrites, `EEXIST` otherwise), so a retry is unblocked and the key survives. Unit test. |
+| R1-2 | high | The README `json` helper parsed private-key files without a catch; a malformed file's `SyntaxError` quoted the start of its content on stderr. | **Fixed.** The helper catches, prints a fixed message (`json: no field <f> in input`) and exits 1; a missing field also exits 1 instead of printing `undefined`. A unit test extracts the helper from README.md and runs it on a marked malformed input. |
+| R1-3 | medium | `install-key.mjs` accepted any `ed25519:` string as `NEAR_AGENT_PUBLIC_KEY` and printed it, so a pasted private key was echoed. | **Fixed.** `publicKeyFrom` parses with `PublicKey.fromString` (32-byte length check) before any output and prints only the normalized public key; fixed error text. Unit test with a real private key. |
+| R1-4 | medium | `agent.mjs` exited 0 when the payout outcome was `unknown` (no terminal event). | **Fixed.** `paymentExitCode`: 0 only for `completed` / `awaiting_owner_approval`, 2 for `failed` / `unknown` (hash still printed). Unit test. README now lists all exit codes (0/1/2/3). |
+| R1-5 | medium | `status` mixed optimistic views with finalized balance; right after an approval it could overstate `available_for_payouts`. | **Fixed.** All reads (views, `view_account`, protocol config, access keys) use one finalized block hash, printed as `block`. Checked read-only on testnet. |
+| R1-6 | low | REVIEW_LOG.md quoted the Git author's no-reply e-mail address. | **Fixed.** Address removed from tracked prose. |
+| P4 gap | medium | Bare expected refusals stop a `set -e` shell; `export X=$(…)` masks failures; no `pipefail`. | **Fixed.** `set -o pipefail`, `X=$(…) && export X`, refusals end in `\|\| test $? -eq 3`. Both blocks were then executed unmodified under `bash -e` with a fresh faucet account (TESTNET_RUN.md, rerun 3). |
+| P5 gap | low | README omitted unknown-settlement and error exit codes. | **Fixed** with R1-4. |
+
+Codex confirmed: no path or shell injection from account ids or arguments, exact amounts at
+the 1-yocto and `u128` bounds, refusal detection requires a transaction outcome, no path
+labels a failed payment `completed`. Stopped here (one re-review round, as planned).
 
 ### 3. Privacy scan (phase 2)
 

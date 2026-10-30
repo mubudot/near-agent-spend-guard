@@ -84,7 +84,7 @@ from the repository root. No account, key, or API token is needed.
    npm test
    ```
 
-   → See `pass 17` and `fail 0`, including exact amounts, rejected invalid input, and the
+   → See `pass 21` and `fail 0`, including exact amounts, rejected invalid input, and the
    outcome summary that tells "accepted" apart from "paid".
 
 3. Preview an agent request without credentials:
@@ -170,9 +170,11 @@ in `./.near/` (git-ignored, file mode 600). Private keys are never printed. Run 
 within one UTC day: pending requests expire and daily budgets reset at UTC midnight.
 
 ```bash
+set -o pipefail                               # a failing command is not hidden by a pipe
 export NEAR_KEY_DIR=$PWD/.near
-json() { node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.parse(s)['$1']))"; }
-export NEAR_OWNER_ACCOUNT=$(node demo/owner.mjs faucet-account | json account)
+# json <field>: print one field of the JSON on stdin; fixed error text, never echoes the input
+json() { node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{let v;try{v=JSON.parse(s)['$1']}catch{}if(v==null){console.error('json: no field $1 in input');process.exit(1)}console.log(v)})"; }
+NEAR_OWNER_ACCOUNT=$(node demo/owner.mjs faucet-account | json account) && export NEAR_OWNER_ACCOUNT
 echo "$NEAR_OWNER_ACCOUNT"                    # → spendguard-<6 hex>.testnet
 export NEAR_CONTRACT_ACCOUNT=guard.$NEAR_OWNER_ACCOUNT NEAR_AGENT_ACCOUNT=agent.$NEAR_OWNER_ACCOUNT
 export SHOP=shop.$NEAR_OWNER_ACCOUNT
@@ -181,10 +183,10 @@ node demo/owner.mjs create-account agent 0.5
 node demo/owner.mjs create-account shop 0.1
 node demo/owner.mjs deploy                    # DeployContract + new{owner} in one batch tx
 node demo/owner.mjs add-agent $NEAR_AGENT_ACCOUNT --allow $SHOP --per-tx 1 --daily 1.2 --threshold 0.2
-export NEAR_AGENT_PUBLIC_KEY=$(node demo/owner.mjs new-key agent-spend-key | json public_key)
+NEAR_AGENT_PUBLIC_KEY=$(node demo/owner.mjs new-key agent-spend-key | json public_key) && export NEAR_AGENT_PUBLIC_KEY
 NEAR_AGENT_OWNER_PRIVATE_KEY=$(json private_key < "$NEAR_KEY_DIR/$NEAR_AGENT_ACCOUNT.json") \
   node demo/install-key.mjs --submit          # FunctionCall key: receiver = guard, methods = [spend], allowance 1 NEAR
-export NEAR_AGENT_PRIVATE_KEY=$(json private_key < "$NEAR_KEY_DIR/agent-spend-key.json")
+NEAR_AGENT_PRIVATE_KEY=$(json private_key < "$NEAR_KEY_DIR/agent-spend-key.json") && export NEAR_AGENT_PRIVATE_KEY
 ```
 
 Each command prints JSON with the transaction hash and a testnet.nearblocks.io link. Then
@@ -197,23 +199,32 @@ npm run -s demo -- --submit "send 0.5 NEAR to $SHOP for API credits" | tee "$NEA
 # → "payment": "awaiting_owner_approval", "request_id": "<n>"  (0.5 NEAR reserved, not paid)
 ID=$(json request_id < "$NEAR_KEY_DIR/pending.json")
 node demo/owner.mjs approve "$ID"
-# → "action": "approve", "payment": "completed"  (exit 2 if the payout failed)
-npm run -s demo -- --submit "send 0.1 NEAR to stranger.testnet for refund"
+# → "action": "approve", "payment": "completed"  (exit 2 if the payout failed or is unknown)
+npm run -s demo -- --submit "send 0.1 NEAR to stranger.testnet for refund" || test $? -eq 3
 # → "payment": "refused", "reason": "E_NOT_ALLOWLISTED"  (exit status 3, no funds moved)
-npm run -s demo -- --submit "send 0.7 NEAR to $SHOP for second order"
+npm run -s demo -- --submit "send 0.7 NEAR to $SHOP for second order" || test $? -eq 3
 # → "payment": "refused", "reason": "E_DAILY"  (0.6 + 0.7 > 1.2 daily cap; exit status 3)
 node demo/owner.mjs status $NEAR_AGENT_ACCOUNT
 # → "pending": [], "spent_today": "600000000000000000000000" (0.6 NEAR), the policy,
 #   available_for_payouts, and the agent's spend-only key with its remaining allowance
 ```
 
+Exit status of `demo/agent.mjs --submit` and `owner.mjs approve`: **0** payment
+`completed` (or, for the agent, `awaiting_owner_approval`); **2** payout `failed` or its
+outcome `unknown` (no terminal contract event; the transaction hash is printed for
+reconciliation); **3** refused on chain by the contract (`reason: E_…`, no funds moved);
+**1** any other error (bad input, missing key, RPC failure). `owner.mjs reject` and the
+provisioning commands exit 0 on success and 1 on error. The `|| test $? -eq 3` above lets the
+two expected refusals pass under `set -e`.
+
 All scripts use FastNEAR's public testnet RPC `https://test.rpc.fastnear.com`
 (`rpc.testnet.near.org` is deprecated and rate-limits); set `NEAR_RPC_URL` to use another.
 Every signing command first checks that the RPC reports `chain_id` `testnet`, and every
 account must end in `.testnet`. Refused requests are real failed transactions on chain:
 the contract panics with the error code and no funds move. If a create step fails, the
-script removes the new key file when the account does not exist, so the step can be
-rerun. To use an account you already have instead of the faucet, put its key file
+script never deletes the new key: when the account does not exist at the final block it
+renames the file to `<name>.json.unconfirmed-<random>` (so the step can be rerun, and the
+key survives if a slow transaction creates the account later); otherwise the file stays. To use an account you already have instead of the faucet, put its key file
 (`{"account_id","public_key","private_key"}`, the near-cli legacy format, e.g.
 `~/.near-credentials/testnet/<you>.testnet.json`) in `NEAR_KEY_DIR`, set
 `NEAR_OWNER_ACCOUNT` to it, and skip the `faucet-account` line.

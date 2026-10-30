@@ -1,9 +1,9 @@
 // Testnet provisioning and owner actions. Keys live in NEAR_KEY_DIR (default ./.near,
 // git-ignored) as <account_id>.json files; private keys are never printed.
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
-import { assertTestnetChain, explorerTx, keyPairFrom, nearToYocto, summarizeOutcome, testnetAccount } from './parse.mjs';
+import { assertTestnetChain, explorerTx, keyPairFrom, nearToYocto, setAsideKey, summarizeOutcome, testnetAccount } from './parse.mjs';
 
 const GAS = 100_000_000_000_000n;
 const KEY_DIR = resolve(process.env.NEAR_KEY_DIR || '.near');
@@ -36,12 +36,17 @@ function loadKey(accountId) {
   // Never let a parse error quote the file's contents.
   try { return JSON.parse(readFileSync(path, 'utf8')); } catch { throw new Error(`${accountId}.json in NEAR_KEY_DIR is not valid JSON`); }
 }
-// After a failed create, keep the key only if the account exists on chain; otherwise a
-// leftover file would block a retry with the same name.
+// After a failed create the outcome can be uncertain (a timeout after broadcast, an unclear
+// faucet reply): the account may still appear later. The key is therefore never deleted.
+// If the account is absent at the final block, the file is moved aside to
+// <name>.json.unconfirmed-<random> (so a retry is not blocked and the key survives);
+// otherwise it stays in place.
 async function cleanupKey(name, accountId) {
   const exists = await (await rpc()).connection.provider.query({ request_type: 'view_account', finality: 'final', account_id: accountId }).then(() => true, (e) => (/does not exist|UNKNOWN_ACCOUNT/i.test(String(e?.message)) ? false : null));
-  if (exists === false) { unlinkSync(keyPath(name)); return 'key file removed (account was not created)'; }
-  return exists ? 'account exists; key file kept' : 'account state unknown; key file kept (delete it if the account does not exist)';
+  if (exists === false) {
+    try { return `account not found at the final block; key kept as ${setAsideKey(KEY_DIR, name)} in NEAR_KEY_DIR (restore it if the account appears later)`; } catch { return 'account not found; key file kept'; }
+  }
+  return exists ? 'account exists; key file kept' : 'account state unknown; key file kept';
 }
 
 async function signer(accountId) {
@@ -141,25 +146,29 @@ async function main() {
       // Approval schedules the payout in a later receipt; report how it settled.
       const { payment } = summarizeOutcome(result);
       done(command, result, { request_id: args[0], payment });
-      if (payment !== 'completed') process.exitCode = 2;
+      if (payment !== 'completed') process.exitCode = 2; // failed or unknown settlement
       return;
     }
     case 'status': {
       const v = await rpc();
-      const view = (methodName, a = {}) => v.viewFunction({ contractId: contract(), methodName, args: a });
+      const p = v.connection.provider;
+      // Every read uses one finalized block, so balance, storage and pending agree.
+      const blockId = (await p.block({ finality: 'final' })).header.hash;
+      const at = { block_id: blockId };
+      const view = (methodName, a = {}) => v.viewFunction({ contractId: contract(), methodName, args: a, blockQuery: at });
       const pending = await view('list_pending');
       // Mirrors the contract's ensure_liquid: storage stake + 65,536 bytes headroom + pending reserves.
-      const state = await v.connection.provider.query({ request_type: 'view_account', finality: 'final', account_id: contract() });
-      const { storage_amount_per_byte: perByte } = (await v.connection.provider.experimental_protocolConfig({ finality: 'final' })).runtime_config;
+      const state = await p.query({ request_type: 'view_account', ...at, account_id: contract() });
+      const { storage_amount_per_byte: perByte } = (await p.experimental_protocolConfig({ blockId })).runtime_config;
       const reserved = pending.reduce((sum, r) => sum + BigInt(r.amount), 0n);
       const available = BigInt(state.amount) - (BigInt(state.storage_usage) + 65_536n) * BigInt(perByte) - reserved;
       const out = {
-        contract: contract(), owner: await view('get_owner'), paused: await view('is_paused'), pending,
+        contract: contract(), block: blockId, owner: await view('get_owner'), paused: await view('is_paused'), pending,
         balance: state.amount, available_for_payouts: (available > 0n ? available : 0n).toString(),
       };
       if (args[0]) {
         const agent = testnetAccount(args[0], 'agent');
-        const keys = (await v.connection.provider.query({ request_type: 'view_access_key_list', finality: 'final', account_id: agent })).keys;
+        const keys = (await p.query({ request_type: 'view_access_key_list', ...at, account_id: agent })).keys;
         const spendKeys = keys.filter((k) => k.access_key.permission?.FunctionCall?.receiver_id === contract())
           .map((k) => ({ public_key: k.public_key, method_names: k.access_key.permission.FunctionCall.method_names, allowance: k.access_key.permission.FunctionCall.allowance }));
         Object.assign(out, { agent, policy: await view('get_policy', { agent }), spent_today: await view('get_spent_today', { agent }), agent_keys_for_contract: spendKeys });

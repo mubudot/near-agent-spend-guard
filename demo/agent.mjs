@@ -1,4 +1,4 @@
-import { assertTestnetChain, explorerTx, keyPairFrom, parseRequest, refusalCode, summarizeOutcome, testnetAccount } from './parse.mjs';
+import { assertTestnetChain, explorerTx, keyPairFrom, parseRequest, paymentExitCode, refusalCode, summarizeOutcome, testnetAccount } from './parse.mjs';
 
 // The spend return value (`{status, request_id | transfer_id}`) is base64 JSON in SuccessValue.
 function spendResult(result) {
@@ -44,7 +44,8 @@ async function main() {
   const summary = summarizeOutcome(result);
   const extra = summary.payment === 'awaiting_owner_approval' ? { request_id: spendResult(result)?.request_id } : {};
   console.log(JSON.stringify({ transaction: result.transaction.hash, explorer: explorerTx(result.transaction.hash), ...summary, ...extra }, null, 2));
-  if (summary.payment === 'failed') process.exitCode = 2;
+  // `unknown` (no terminal event) is not success: keep the hash and exit 2 for reconciliation.
+  if (paymentExitCode(summary.payment)) process.exitCode = 2;
 }
 
 main().catch((error) => {

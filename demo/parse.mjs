@@ -1,3 +1,7 @@
+import { linkSync, unlinkSync } from 'node:fs';
+import { join } from 'node:path';
+import { randomBytes } from 'node:crypto';
+
 const YOCTO = 10n ** 24n;
 
 // Strict, intentionally small offline grammar. Never guesses a receiver or rounds money.
@@ -60,4 +64,25 @@ export async function assertTestnetChain(provider) {
 // Parse a private key without ever echoing the input in an error message.
 export function keyPairFrom(KeyPair, secret, label) {
   try { return KeyPair.fromString(secret); } catch { throw new Error(`${label} is not a valid ed25519 private key`); }
+}
+
+// Parse a public key (ed25519, 32 bytes) without echoing the input; a pasted private key
+// (64 bytes, same `ed25519:` prefix) is rejected before anything is printed.
+export function publicKeyFrom(PublicKey, value, label) {
+  let key;
+  try { key = PublicKey.fromString(String(value ?? '')); } catch { key = null; }
+  if (!key || key.data?.length !== 32 || !String(value).startsWith('ed25519:')) throw new Error(`${label} must be an ed25519 public key (32 bytes)`);
+  return key.toString();
+}
+
+// Exit status for a submitted spend or approval: 0 only for a settled payment or a request
+// held for the owner; 2 when the payout failed or its outcome could not be determined.
+export const paymentExitCode = (payment) => (payment === 'completed' || payment === 'awaiting_owner_approval' ? 0 : 2);
+
+export function setAsideKey(dir, name, suffix = randomBytes(4).toString('hex')) {
+  const from = join(dir, `${name}.json`);
+  const to = join(dir, `${name}.json.unconfirmed-${suffix}`);
+  linkSync(from, to); // fails with EEXIST instead of overwriting
+  unlinkSync(from);
+  return `${name}.json.unconfirmed-${suffix}`;
 }
