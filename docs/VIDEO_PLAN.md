@@ -53,9 +53,13 @@ accounts and agent key are already provisioned.
 - Before posting, scrub the frames for key material, local paths, host names and e-mail
   addresses.
 
-Status: a 130-second captioned, edited replay of the documented first testnet run
-is generated with `bash scripts/video/make_demo.sh` at `../work/near_demo.mp4`.
-It is labeled as a condensed replay, includes public transaction hashes, and
-submits no new transactions. See `scripts/video/README.md` for dependencies,
-optional Piper narration, and the extracted frames to inspect before sharing.
-The video has not been posted.
+Status: recorded 2026-10-30. The video (1:48, 1080p, H.264/AAC, captions plus Piper TTS
+narration, no music) was rendered from a **live take**: the script's commands were run
+against the deployment at 00:23–00:24 UTC on a fresh UTC day, their real output was
+captured and rendered as terminal frames, with three testnet.nearblocks.io screenshots
+(agent access keys, the `E_NOT_ALLOWLISTED` refusal, the immediate payment). Take
+transactions: [TESTNET_RUN.md](TESTNET_RUN.md#demo-video-take). Every 0.5 s frame was OCR-checked for
+e-mail addresses, names, IP addresses, local paths and private-key material: none found; only
+public keys and testnet account ids appear. The file is kept outside the repository and
+has not been posted. `scripts/video/` separately renders a condensed replay of the first
+run from the recorded hashes (no new transactions).

@@ -1,6 +1,6 @@
 # Status
 
-## Phase 1 (local): complete. Phase 2 (testnet deploy and live demo): complete. Demo video: not recorded yet.
+## Phase 1 (local): complete. Phase 2 (testnet deploy and live demo): complete. Demo video: recorded (not posted).
 
 ### Phase 2 — live on NEAR testnet (2026-10-29 23:39–23:49 UTC)
 
@@ -25,13 +25,14 @@ key file, `status` shows liquidity and key allowance, README rerun fully copy-pa
 
 | Suite | Result |
 | --- | --- |
-| `cargo test` | **26 passed, 0 failed** (phase 1 fresh-clone run; `src/`, `Cargo.*` unchanged in phase 2) |
-| `npm test` | **17 passed, 0 failed** (4 new: exact `nearToYocto`, refusal-code/explorer helpers, testnet chain check, no key echo) |
-| `npm run test:integration` (nearcore 2.14.0 sandbox) | **9 passed (1 test + 8 on-chain subtests), 0 failed** (phase 1 fresh-clone run; test file and dependencies unchanged in phase 2) |
+| `cargo test` | **26 passed, 0 failed** (re-run 2026-10-30 on Linux ARM64; `src/` unchanged since phase 1) |
+| `npm test` | **21 passed, 0 failed** (4 new after the second Codex round: public-key validation, exit codes, key set-aside, README `json` helper) |
+| `npm run test:integration` (nearcore 2.14.0 sandbox) | **9 passed (1 test + 8 on-chain subtests), 0 failed** in the phase 1 fresh-clone run on x86_64. On the 2026-10-30 ARM64 host it was **skipped**: neard needs a file-descriptor limit of 65,535 and the host's hard limit is 4,096. Test file and contract unchanged since that run. |
 
-Total: **52 passed, 0 failed**, plus the live testnet run and two fresh-account reruns.
-The Rust and sandbox suites were not re-executed in phase 2 (the build host was unreachable);
-the deployed code hash equals the WASM built from the unchanged source.
+Total: **56 passed, 0 failed** (26 + 21 + 9), plus the live testnet run, three fresh-account
+reruns (the third after the second Codex round, README blocks run unmodified under `bash -e`)
+and the recorded demo take ([TESTNET_RUN.md](docs/TESTNET_RUN.md)).
+The deployed code hash equals the WASM built from the unchanged source.
 
 Measured `on_transfer` callback: ~2.3 Tgas at small state and ~19 Tgas at maximum
 occupancy (budget 50 Tgas). An immediate `spend` at maximum occupancy burns ~20 Tgas plus
@@ -53,6 +54,6 @@ Rules checklist: [docs/REQUIREMENTS_CHECK.md](docs/REQUIREMENTS_CHECK.md).
 
 ## Left
 
-Demo video (plan: [docs/VIDEO_PLAN.md](docs/VIDEO_PLAN.md)), making the repository public,
+Reviewing and posting the demo video (recorded from a live take, kept outside the repository; [docs/VIDEO_PLAN.md](docs/VIDEO_PLAN.md)), making the repository public,
 the X demo post, and the submission — all by the human. No push, mainnet deployment,
 real-fund transaction, or LLM call has been performed.

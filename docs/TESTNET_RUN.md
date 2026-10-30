@@ -117,6 +117,24 @@ copy of the working tree, owner `spendguard-b506b3.testnet`. Exit status 0.
 
 Final `status`: `pending: []`, `spent_today: 600000000000000000000000`. Identical outcomes.
 
+## Demo video take
+
+Recorded 2026-10-30 00:23–00:24 UTC (UTC day 20756, `spent_today` was `0` beforehand) on
+the main deployment with the commands of [VIDEO_PLAN.md](VIDEO_PLAN.md), after the second
+Codex round's fixes:
+
+| Step | Result | Transaction |
+| --- | --- | --- |
+| 0.1 NEAR coffee | `payment: completed` | [C6WyNnUj…](https://testnet.nearblocks.io/txns/C6WyNnUj8NAspgs6jpAVH6A8ARCaM5R6m27rmppfQ2tn) |
+| 0.5 NEAR API credits | `awaiting_owner_approval`, `request_id: 4` | [7ZZH2pmS…](https://testnet.nearblocks.io/txns/7ZZH2pmSZsAd9esCqfitURPg5YkUeueMkyohUq9VcsD1) |
+| `approve 4` | `payment: completed` | [CxeyidAH…](https://testnet.nearblocks.io/txns/CxeyidAH9VPyz5YUVfrtLCCa7F8FWim5ayHuBUE5QtR6) |
+| `stranger.testnet` | `refused`, `E_NOT_ALLOWLISTED`, exit 3 | [CMpUbeRe…](https://testnet.nearblocks.io/txns/CMpUbeReZQauURBwByaUZ5xcDpCzxVbvcg6LP8tUwUrJ) |
+| 0.7 NEAR second order | `refused`, `E_DAILY`, exit 3 | [AoooFQrD…](https://testnet.nearblocks.io/txns/AoooFQrDUfw8T7Tybrju6KreaQFomcxuuMCYcvEHx5UN) |
+
+Afterwards: `pending: []`, `spent_today: 600000000000000000000000`,
+`available_for_payouts` ~1.34 NEAR. On nearblocks the refusal shows Failed with
+`E_NOT_ALLOWLISTED` and the coffee payment shows Success.
+
 Explorer pages were opened in a browser on 2026-10-30: the immediate-payment transaction
 shows Success (`spend`, agent → guard), the stranger refusal shows Failed with
 `E_NOT_ALLOWLISTED`, and the guard account page shows the deployed contract (279.07 kB storage).
