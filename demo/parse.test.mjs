@@ -29,6 +29,15 @@ test('network account validation', () => {
   assert.throws(() => testnetAccount(undefined, 'agent'));
 });
 
+test('account errors say what to do and never echo the value', () => {
+  assert.throws(() => testnetAccount(undefined, 'NEAR_AGENT_ACCOUNT'),
+    /NEAR_AGENT_ACCOUNT is not set: export NEAR_AGENT_ACCOUNT=<account>\.testnet/);
+  assert.throws(() => testnetAccount('', 'NEAR_CONTRACT_ACCOUNT'), /NEAR_CONTRACT_ACCOUNT is not set/);
+  assert.throws(() => testnetAccount('Secret-Value.near', 'NEAR_AGENT_ACCOUNT'), (e) =>
+    /must be a testnet account ID: lowercase, at most 64 characters, ending in \.testnet/.test(e.message)
+    && !e.message.includes('Secret-Value'));
+});
+
 const log = (event) => `EVENT_JSON:${JSON.stringify({ standard: 'agent_spend_guard', version: '1.0.0', event, data: [] })}`;
 const outcome = (...events) => ({ receipts_outcome: [{ outcome: { logs: events.map(log) } }] });
 test('outcome summary distinguishes accepted, pending, paid and failed', () => {

@@ -12,6 +12,39 @@ key on its own account restricted to this contract's `spend` method, with a fini
 gas allowance. The demo checks those permissions before submission. Gas allowance
 pays for calls; the contract's policy separately limits the funds it transfers.
 
+## At a glance
+
+```
+owner (full-access keys)                agent (untrusted: LLM, script, bot)
+  | add-agent, policy, approve,           | function-call key on its own account:
+  | reject, pause, withdraw               | receiver = guard, methods = [spend],
+  v                                       v finite gas allowance
++-------------------- guard contract (holds the NEAR) --------------------+
+| spend(receiver, amount, memo)                                           |
+|   paused? -> allowlisted? -> per-tx cap? -> daily cap?  (else: refused) |
+|   amount <= approval threshold -> transfer now                          |
+|   amount >  approval threshold -> pending (budget + liquidity reserved) |
+| pending -> owner approve / reject, or expiry at the next UTC midnight   |
+| accepted spends, approvals, rejections, expiries -> NEP-297 events +    |
+| bounded on-chain audit ring; refusals are failed transactions           |
++-------------------------------------------------------------------------+
+```
+
+| If the agent (or whoever hijacked it) tries to … | … this stops it |
+| --- | --- |
+| pay an address it was talked into (prompt injection, scam) | receiver allowlist; empty allowlist = nothing payable (`E_NOT_ALLOWLISTED`) |
+| drain the budget in one call, or in many small ones | per-transaction cap and UTC-daily cap, pending requests counted (`E_PER_TX`, `E_DAILY`) |
+| make a large payment without a human | approval threshold → pending request the owner must approve |
+| change its own limits, add agents, withdraw, deploy code | owner-only methods; its key can call only `spend` on this contract |
+| burn the owner's NEAR on gas | the key's finite gas allowance (gas is separate from the funds the policy limits) |
+| keep going after it misbehaves | global or per-agent pause (`E_PAUSED`); owner removes the agent |
+
+**Judge quick start (30 s, no build, no key):** with Node 20+, run `npm ci --ignore-scripts`, then
+`NEAR_CONTRACT_ACCOUNT=guard.spendguard-b31c91.testnet node demo/owner.mjs status agent.spendguard-b31c91.testnet`
+→ the live testnet policy and the agent's spend-only key (details under [Live on testnet](#live-on-testnet)).
+Every transaction of the recorded live run is linked in [docs/TESTNET_RUN.md](docs/TESTNET_RUN.md).
+The full local reproduction is [below](#reproduce-locally-do-x--see-y).
+
 ## Architecture and behavior
 
 - `src/lib.rs`: contract and bounded state; `src/tests.rs`: unit tests.
@@ -84,7 +117,7 @@ from the repository root. No account, key, or API token is needed.
    npm test
    ```
 
-   → See `pass 21` and `fail 0`, including exact amounts, rejected invalid input, and the
+   → See `pass 22` and `fail 0`, including exact amounts, rejected invalid input, and the
    outcome summary that tells "accepted" apart from "paid".
 
 3. Preview an agent request without credentials:
@@ -147,7 +180,15 @@ The contract is deployed on NEAR **testnet** (no mainnet deployment, no real fun
 | Allowlisted merchant | `shop.spendguard-b31c91.testnet` |
 
 The deployed code hash `CuJqiX8P7XpVgYRBtX3vwZuHFHJNiNE1KHmny3picmdf` is the base58
-SHA-256 of the WASM that step 4 builds from this repository. The live run (immediate
+SHA-256 of the WASM (277,735 bytes) that step 4 built from this repository's contract source on the
+x86_64 Linux build host, with the cargo registry at `/root/.cargo`. Rust embeds the absolute source paths
+of dependencies (in panic messages) in the WASM, so a build on another machine is byte-identical only if
+those paths match; otherwise the hash differs while the code is the same. A build on Linux ARM64 with
+the path remapped (`RUSTFLAGS="--remap-path-prefix=$CARGO_HOME=/root/.cargo"`) contains exactly the same
+strings but is 189 bytes larger (checked 2026-10-30), so compare on x86_64 Linux:
+`RUSTFLAGS="--remap-path-prefix=${CARGO_HOME:-$HOME/.cargo}=/root/.cargo" cargo build --locked --target wasm32-unknown-unknown --release`,
+then base58-encode the SHA-256 of the `.wasm` (NEAR's `code_hash`). A byte-identical rebuild on another
+host is not guaranteed; a containerized reproducible build is listed as future work. The live run (immediate
 payment, owner-approved pending payment, two on-chain refusals) with every transaction
 link is in [docs/TESTNET_RUN.md](docs/TESTNET_RUN.md).
 
@@ -258,6 +299,7 @@ review). Libraries: near-sdk 5.17.2 (Rust), near-api-js 5.1.1, near-workspaces 5
 All code was written for this hackathon; no earlier codebase is reused.
 Rule-by-rule checklist: [docs/REQUIREMENTS_CHECK.md](docs/REQUIREMENTS_CHECK.md).
 
-Author: **mubudot**. The author's sibling project is
-**paypal-guardrail-buyer**, a separate project disclosed alongside this NEAR
-hackathon entry. License: [MIT](LICENSE).
+Author: **mubudot**. Other projects by the same author (disclosed per Q-015): **paypal-guardrail-buyer**,
+an independent project (Python, PayPal Sandbox) entered in the PayPal AI Hackathon, not in NEAR HACKATHON;
+it shares no code with this repository. This is the author's only NEAR HACKATHON entry at the time of
+writing. License: [MIT](LICENSE).

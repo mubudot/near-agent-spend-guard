@@ -36,8 +36,11 @@ export function refusalCode(message) {
 }
 
 export function testnetAccount(value, name) {
-  if (!value || value.length > 64 || !/^[a-z0-9]+(?:[._-][a-z0-9]+)*\.testnet$/.test(value)) {
-    throw new Error(`${name} must be a testnet account ID`);
+  if (!value) {
+    throw new Error(`${name} is not set: export ${name}=<account>.testnet (see README "Rerun on testnet with your own accounts")`);
+  }
+  if (value.length > 64 || !/^[a-z0-9]+(?:[._-][a-z0-9]+)*\.testnet$/.test(value)) {
+    throw new Error(`${name} must be a testnet account ID: lowercase, at most 64 characters, ending in .testnet`);
   }
   return value;
 }
