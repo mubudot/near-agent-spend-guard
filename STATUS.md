@@ -12,6 +12,10 @@ Live on testnet: mock → `completed`, `E_NOT_ALLOWLISTED`, `E_DAILY`; Claude (`
 paid only the 0.1 NEAR invoice and flagged the injection. Offline the 0.9 NEAR call is held for owner approval.
 Also `docs/status.html`, a static read-only page that reads the live policy, spent today, pending requests and
 the audit ring from testnet RPC. Hashes: [docs/TESTNET_RUN.md](docs/TESTNET_RUN.md#ai-agent-mode-prompt-injection).
+One payment per invoice: `spend` requires `invoice_id` and a harness-side ledger (`demo/invoice-ledger.mjs`,
+persisted outside the repo with `--submit`) refuses a repeat before it is submitted (`--scenario duplicate`);
+added after a smoke run in which Claude paid one invoice twice. Contract unchanged; on-chain per-invoice
+idempotency is a planned contract upgrade.
 
 ### Phase 2 — live on NEAR testnet (2026-10-29 23:39–23:49 UTC)
 
@@ -37,7 +41,7 @@ key file, `status` shows liquidity and key allowance, README rerun fully copy-pa
 | Suite | Result |
 | --- | --- |
 | `cargo test` | **26 passed, 0 failed** (final re-check 2026-10-30, fresh clone, Linux ARM64; `src/` unchanged since phase 1) |
-| `npm test` | **47 passed, 0 failed** (bring-your-own-model round: +8 for `demo/llm/` providers; AI-agent round: +16; before: 23) |
+| `npm test` | **57 passed, 0 failed** (one-payment-per-invoice round: +10; bring-your-own-model round: +8 for `demo/llm/` providers; AI-agent round: +16; before: 23) |
 | `npm run test:integration` (nearcore 2.14.0 sandbox) | **9 passed (1 test + 8 on-chain subtests), 0 failed** in the phase 1 fresh-clone run on x86_64. On the 2026-10-30 ARM64 host it was **skipped** (re-confirmed in the final re-check): neard needs a file-descriptor limit of 65,535 and the host's hard limit is 4,096. Test file and contract unchanged since that run. |
 
 Total: **82 passed, 0 failed** (26 + 47 + 9), plus the live testnet run, three fresh-account
@@ -60,6 +64,9 @@ Rules checklist: [docs/REQUIREMENTS_CHECK.md](docs/REQUIREMENTS_CHECK.md).
 - The owner is trusted: removing and re-adding an agent resets its daily budget.
 - State is one unversioned Borsh value; a future layout change needs a migration method.
 - The testnet demo depends on public testnet services (faucet helper, FastNEAR RPC).
+- The contract does not know invoice ids: one-payment-per-invoice is enforced by the AI agent's local ledger,
+  not on chain (another harness or a deleted ledger is not covered; the caps still bound repeats). On-chain
+  idempotency (invoice id / nonce in `spend`) is a planned contract upgrade.
 - No professional audit; AI-assisted review only.
 - `npm` reports deprecated `tar@6.2.1` inside near-workspaces' dependency tree (dev only).
 
@@ -67,4 +74,4 @@ Rules checklist: [docs/REQUIREMENTS_CHECK.md](docs/REQUIREMENTS_CHECK.md).
 
 Reviewing and posting the demo video (recorded from a live take, kept outside the repository; [docs/VIDEO_PLAN.md](docs/VIDEO_PLAN.md)), making the repository public,
 the X demo post, and the submission — all by the human. No push, mainnet deployment, or
-real-fund transaction has been performed. LLM use: one live AI-agent run (4 model calls) plus three tiny connectivity checks. Bring-your-own-model round: one offline-guard smoke run per provider (Anthropic Messages, OpenAI-compatible), no testnet calls.
+real-fund transaction has been performed. LLM use: one live AI-agent run (4 model calls) plus three tiny connectivity checks. Bring-your-own-model round: one offline-guard smoke run per provider (Anthropic Messages, OpenAI-compatible), no testnet calls; one-payment-per-invoice round: one more Anthropic-format offline smoke (single payment).

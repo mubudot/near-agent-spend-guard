@@ -163,3 +163,39 @@ contract would also accept. Per-invoice idempotency is not part of the policy; t
 | B1 | Codex (low) | Missing / null tool arguments became `{}` silently, other non-objects were partly accepted. | `toolArguments`: JSON objects only, blank = no arguments, anything else marked and refused before a tool runs (+test). |
 | B2 | Codex (low) | Placeholder hosts in a test and the README. | `localhost` / `<Messages-compatible base URL>`. |
 | B3 | Hark | Odd response shapes (non-numeric usage, non-object tool calls) were not all handled explicitly. | Defensive parsing; malformed replies are an LLM error, which keeps the steps so far (+test). |
+
+## One payment per invoice (2026-10-30)
+
+Issue from the bring-your-own-model smoke above: Claude (Anthropic format) paid invoice #1042 (0.1 NEAR) twice in
+back-to-back turns; both calls were within the caps, so the contract would accept both. Fixed in the agent
+harness only; the Rust contract and the deployed code are unchanged (no redeploy).
+
+- `spend` now requires `invoice_id`; the tool description and system prompt say each invoice is paid at most once.
+- `demo/invoice-ledger.mjs`: per-run ledger, persisted with `--submit` to `~/.near-agent-spend-guard/paid-invoices.json`
+  (`AI_AGENT_LEDGER` overrides, `memory` disables persistence). A `submitting` record is written before each
+  transaction; a repeat for a `submitting` / `completed` / `awaiting_owner_approval` / `unknown` invoice is refused
+  locally (never submitted) and returned to the model as a tool error. Refusals and failed payouts release the
+  invoice. The invoice id goes into the on-chain memo.
+- `--scenario duplicate`: the gullible mock pays invoice 1042 twice; the second call is `refused` /
+  `duplicate_invoice` / `agent harness (not submitted)`.
+- Tests (`demo/invoice-ledger.test.mjs`, +10): normalization, the mock scenario, the Anthropic path (two turns, as
+  in the smoke) and the OpenAI path (two calls in one reply) with mocked fetch, persistence across runs and the
+  CLI, reservation before submission, ledger write failures (nothing submitted / exit 1), damaged ledger fails closed.
+- Live re-run (Anthropic format, `claude-sonnet-5-5`, offline simulated guard, no testnet; one attempt hit a transient
+  gateway HTTP 502 before any model output and was repeated): one `spend` for invoice 1042 (`completed`), injection
+  ignored, no duplicate attempt this time, so the ledger was not exercised live — the mocked tests cover that path.
+
+Honest scope: this is a client-side control. The restricted key can still sign two `spend` calls for one invoice from
+another harness or machine, or after the ledger file is deleted; an injected *new* invoice id is stopped only by the
+contract's allowlist and caps. **Planned contract upgrade:** on-chain per-invoice idempotency (an invoice id / nonce
+per agent recorded and checked in `spend`), which needs a redeploy.
+
+| ID | Source | Finding | Fix |
+| --- | --- | --- | --- |
+| D1 | Codex (high) | The ledger was written only after `chain.spend`; a crash mid-submission or a failed write left a rerun free to pay again. | Blocking `submitting` record persisted before the transaction; reservation failure means nothing is submitted (+test). |
+| D2 | Codex (medium) | Only the ledger's outer shape was validated; a `null` or misfiled record read as unpaid. | Every record checked (fields, blocking state, key matches receiver and invoice id); otherwise fail closed (+tests). |
+| D3 | Codex (medium) | A ledger write failure after a payment stopped the run with exit 0. | `ledger_error` → exit 1; the `submitting` record keeps blocking (+test). |
+| D4 | Codex (medium) | Predictable temp file opened with truncation could follow a symlink or keep a stale mode. | Random name, exclusive `wx` create with mode 0600, then rename. |
+
+Codex re-check: D1, D3, D4 FIXED, D2 partly (misfiled keys); the key check was then added with a test. Stopped
+after two review rounds, as planned.

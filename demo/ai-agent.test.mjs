@@ -13,7 +13,7 @@ test('mock LLM on the honest page pays only the invoice', async () => {
   const run = await runAgent({ llm: mockLlm(), task: s.task, page: s.page, chain: new SimulatedGuard() });
   const spends = run.steps.filter((x) => x.tool === 'spend');
   assert.equal(spends.length, 1);
-  assert.deepEqual(spends[0].input, { receiver: DEFAULT_MERCHANT, amount_near: '0.1', memo: 'coffee' });
+  assert.deepEqual(spends[0].input, { receiver: DEFAULT_MERCHANT, amount_near: '0.1', invoice_id: '1042', memo: 'coffee' });
   assert.equal(spends[0].result.payment, 'completed');
   assert.match(run.final, /mock LLM/);
 });
@@ -50,7 +50,10 @@ test('simulated guard mirrors the contract check order', async () => {
 });
 
 test('spend arguments: exact amounts; malformed input never reaches the chain', async () => {
-  assert.deepEqual(spendArgs({ receiver: 'a.testnet', amount_near: '0.000000000000000000000001', memo: 'x' }), { receiver: 'a.testnet', amount: '1', memo: 'x' });
+  assert.deepEqual(spendArgs({ receiver: 'a.testnet', amount_near: '0.000000000000000000000001', invoice_id: 'Invoice #A-1', memo: 'x' }), { receiver: 'a.testnet', amount: '1', memo: 'invoice a-1: x', invoiceId: 'a-1' });
+  assert.throws(() => spendArgs({ receiver: 'a.testnet', amount_near: '1', memo: 'x' }), /invoice_id is required/);
+  const long = Buffer.byteLength(spendArgs({ receiver: 'a.testnet', amount_near: '1', invoice_id: '1', memo: '\u20ac'.repeat(200) }).memo);
+  assert.ok(long <= 256 && long > 250, String(long)); // contract MAX_MEMO is bytes; no split character
   assert.throws(() => spendArgs({ receiver: 'shop.near', amount_near: '1', memo: 'x' }), /testnet/);
   assert.throws(() => spendArgs({ receiver: 'a.testnet', amount_near: '1e3', memo: 'x' }), /decimal/);
   assert.throws(() => spendArgs({ receiver: 'a.testnet', amount_near: '-1', memo: 'x' }), /decimal/);
@@ -67,7 +70,7 @@ test('spend arguments: exact amounts; malformed input never reaches the chain', 
 
 test('agent loop caps spend calls and turns', async () => {
   let i = 0;
-  const llm = async () => ({ stop_reason: 'tool_use', content: [{ type: 'tool_use', id: `t${(i += 1)}`, name: 'spend', input: { receiver: DEFAULT_MERCHANT, amount_near: '0.01', memo: 'loop' } }] });
+  const llm = async () => ({ stop_reason: 'tool_use', content: [{ type: 'tool_use', id: `t${(i += 1)}`, name: 'spend', input: { receiver: DEFAULT_MERCHANT, amount_near: '0.01', invoice_id: `L${i}`, memo: 'loop' } }] });
   const run = await runAgent({ llm, task: 't', page: '', chain: new SimulatedGuard(), maxTurns: 6, maxSpends: 4 });
   assert.equal(run.steps.filter((x) => !x.error).length, 4);
   assert.match(run.steps[4].result.error, /spend limit/);
@@ -84,7 +87,7 @@ test('simulated guard: E_PAUSED before E_AMOUNT before E_NOT_ALLOWLISTED', async
 test('a failed spend submission stops the run (no retry) and exits 2 with the outcome marked unknown', async () => {
   let calls = 0;
   const chain = { budget: async () => ({}), spend: async () => { calls += 1; throw new Error('RPC timeout'); } };
-  const llm = async () => ({ stop_reason: 'tool_use', content: [{ type: 'tool_use', id: `t${calls}`, name: 'spend', input: { receiver: DEFAULT_MERCHANT, amount_near: '0.1', memo: 'x' } }] });
+  const llm = async () => ({ stop_reason: 'tool_use', content: [{ type: 'tool_use', id: `t${calls}`, name: 'spend', input: { receiver: DEFAULT_MERCHANT, amount_near: '0.1', invoice_id: '1042', memo: 'x' } }] });
   const run = await runAgent({ llm, task: 't', page: '', chain });
   assert.equal(calls, 1);
   assert.equal(run.steps[0].submit_error, true);
@@ -98,7 +101,7 @@ test('an LLM failure after a payment keeps the payment in the result', async () 
   let n = 0;
   const llm = async () => {
     n += 1;
-    if (n === 1) return { stop_reason: 'tool_use', content: [{ type: 'tool_use', id: 't1', name: 'spend', input: { receiver: DEFAULT_MERCHANT, amount_near: '0.1', memo: 'x' } }] };
+    if (n === 1) return { stop_reason: 'tool_use', content: [{ type: 'tool_use', id: 't1', name: 'spend', input: { receiver: DEFAULT_MERCHANT, amount_near: '0.1', invoice_id: '1042', memo: 'x' } }] };
     throw new Error('LLM request failed: HTTP 529');
   };
   const run = await runAgent({ llm, task: 't', page: '', chain: new SimulatedGuard() });

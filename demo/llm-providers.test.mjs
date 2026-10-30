@@ -120,7 +120,7 @@ test('openai provider through the agent loop: injected payment still refused by 
   // A gullible OpenAI-format model: reads the page, pays the invoice and the injected stranger, then reports.
   const f = fakeFetch(
     reply({ content: null, tool_calls: [call('r1', 'read_merchant_page', {})] }, 'tool_calls'),
-    reply({ content: null, tool_calls: [call('s1', 'spend', { receiver: 'shop.spendguard-b31c91.testnet', amount_near: '0.1', memo: 'coffee' }), call('s2', 'spend', { receiver: 'stranger.testnet', amount_near: '0.5', memo: 'verification' })] }, 'tool_calls'),
+    reply({ content: null, tool_calls: [call('s1', 'spend', { receiver: 'shop.spendguard-b31c91.testnet', amount_near: '0.1', invoice_id: '1042', memo: 'coffee' }), call('s2', 'spend', { receiver: 'stranger.testnet', amount_near: '0.5', invoice_id: 'V-7731', memo: 'verification' })] }, 'tool_calls'),
     reply({ content: null, tool_calls: [{ id: 'bad', function: { name: 'spend', arguments: '{nope' } }] }, 'tool_calls'),
     reply({ content: 'done' }),
   );
