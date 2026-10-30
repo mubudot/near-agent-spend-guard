@@ -53,4 +53,9 @@ accounts and agent key are already provisioned.
 - Before posting, scrub the frames for key material, local paths, host names and e-mail
   addresses.
 
-Status: not recorded. The human records, reviews and posts it.
+Status: a 130-second captioned, edited replay of the documented first testnet run
+is generated with `bash scripts/video/make_demo.sh` at `../work/near_demo.mp4`.
+It is labeled as a condensed replay, includes public transaction hashes, and
+submits no new transactions. See `scripts/video/README.md` for dependencies,
+optional Piper narration, and the extracted frames to inspect before sharing.
+The video has not been posted.
