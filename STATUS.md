@@ -13,9 +13,9 @@ Three Codex review rounds: 7 findings in round 1 (provisional tx results, unexec
 tx lookups, stale data after a config change, key-text overclaim, focus loss from 5 s re-renders, expired requests
 shown as actionable), 2 in round 2 (failed re-check dropped retry, out-of-order lookups), round 3 "No material
 issues". Live dashboard video take (5 testnet transactions): [TESTNET_RUN.md](docs/TESTNET_RUN.md#dashboard-video-take).
-New demo video (2:07, dashboard + terminal, kept outside the repository, not posted; two Codex review passes of script and frames).
+Demo video (2:07, dashboard + terminal, two Codex review passes of script and frames): posted by the author on 2026-10-31, https://youtu.be/XA7GZ8nHDVM and https://x.com/mubu_dot/status/2116372906745991631.
 
-## Phase 1 (local): complete. Phase 2 (testnet deploy and live demo): complete. Demo video: recorded (not posted). AI-agent mode: added and run live.
+## Phase 1 (local): complete. Phase 2 (testnet deploy and live demo): complete. Demo video: posted (2026-10-31). Repository: public (2026-10-31). AI-agent mode: added and run live.
 
 ### AI-agent mode (2026-10-30)
 
@@ -56,10 +56,10 @@ key file, `status` shows liquidity and key allowance, README rerun fully copy-pa
 | Suite | Result |
 | --- | --- |
 | `cargo test` | **26 passed, 0 failed** (re-run 2026-10-30 19:00 CST on a clean `git archive` of `35763b8`, x86_64 host; earlier 2026-10-30 18:40 CST, clean `git archive` of `cbb0baa` on an Ubuntu 24.04 x86_64 host, rustc 1.99.1; also the 15:40 CST release check on Linux ARM64; `src/` unchanged since phase 1) |
-| `npm test` | **78 passed, 0 failed** (63 agent/CLI + 15 dashboard; 2026-10-31: +2 for failed/unknown payouts stopping the AI-agent run; 2026-10-30 19:00 CST, clean `git archive` of `35763b8` on the Ubuntu 24.04 x86_64 host; before the dashboard: 61 passed, re-run 2026-10-30 18:40 CST on the x86_64 host, Node 22.23.4; release check 2026-10-30: +4 for ledger locking, interrupted-run exit codes, string-only amounts, zero approval threshold; one-payment-per-invoice round: +10; bring-your-own-model round: +8 for `demo/llm/` providers; AI-agent round: +16; before: 23) |
+| `npm test` | **79 passed, 0 failed** (63 agent/CLI + 16 dashboard; 2026-10-31 pre-submission review: +1, a transaction to another contract is never shown as a guard decision; 2026-10-31: +2 for failed/unknown payouts stopping the AI-agent run; 2026-10-30 19:00 CST, clean `git archive` of `35763b8` on the Ubuntu 24.04 x86_64 host; before the dashboard: 61 passed, re-run 2026-10-30 18:40 CST on the x86_64 host, Node 22.23.4; release check 2026-10-30: +4 for ledger locking, interrupted-run exit codes, string-only amounts, zero approval threshold; one-payment-per-invoice round: +10; bring-your-own-model round: +8 for `demo/llm/` providers; AI-agent round: +16; before: 23) |
 | `npm run test:integration` (nearcore 2.14.0 sandbox) | **9 passed (1 test + 8 on-chain subtests), 0 failed** re-run 2026-10-30 19:05 CST on a clean `git archive` of `35763b8` (x86_64, after `cargo build --locked --target wasm32-unknown-unknown --release`); earlier on 2026-10-30 18:45 CST: clean `git archive` of `cbb0baa` on an Ubuntu 24.04 x86_64 host with `ulimit -n 65535` (neard needs 65,535 file descriptors; the ARM64 host earlier that day capped at 4,096 and skipped it). Same result as the phase 1 fresh-clone run. Measured gas unchanged: `on_transfer` ~2.3 Tgas small state, ~19.3 Tgas at maximum state; `spend` ~20.0 Tgas. |
 
-Total: **113 passed, 0 failed** (26 + 78 + 9; 111 before the 2026-10-31 payout-stop tests; 96 before the dashboard tests), plus the live testnet run, three fresh-account
+Total: **114 passed, 0 failed** (26 + 79 + 9; 113 before the 2026-10-31 inspector fix; 111 before the 2026-10-31 payout-stop tests; 96 before the dashboard tests), plus the live testnet run, three fresh-account
 reruns (the third after the second Codex round, README blocks run unmodified under `bash -e`)
 and the recorded demo take ([TESTNET_RUN.md](docs/TESTNET_RUN.md)).
 The deployed code hash equals the WASM built from the unchanged source on the x86_64 build host (cargo registry at `/root/.cargo`; a build on another x86_64 host with the registry at `/home/hark/.cargo` gave a different hash, as expected from the embedded paths); an ARM64 rebuild differs by 189 bytes even with the registry path remapped, see README "Live on testnet".
@@ -75,7 +75,7 @@ Rules checklist: [docs/REQUIREMENTS_CHECK.md](docs/REQUIREMENTS_CHECK.md).
 
 - near-workspaces 5.0.0 bundles neard 2.6.2, which cannot load WASM from current Rust
   (`PrepareError: Deserialization`). The integration test therefore uses the official
-  nearcore 2.14.0 sandbox (same release as mainnet and testnet), or `SPEND_GUARD_SANDBOX_BIN`.
+  nearcore 2.14.0 sandbox (pinned in `integration/guard.test.mjs`), or `SPEND_GUARD_SANDBOX_BIN`.
 - The owner is trusted: removing and re-adding an agent resets its daily budget.
 - State is one unversioned Borsh value; a future layout change needs a migration method.
 - The testnet demo depends on public testnet services (faucet helper, FastNEAR RPC).
@@ -87,6 +87,7 @@ Rules checklist: [docs/REQUIREMENTS_CHECK.md](docs/REQUIREMENTS_CHECK.md).
 
 ## Left
 
-Reviewing and posting the demo video (recorded from a live take, kept outside the repository; [docs/VIDEO_PLAN.md](docs/VIDEO_PLAN.md)), making the repository public,
-the X demo post, and the submission — all by the human. No push, mainnet deployment, or
-real-fund transaction has been performed. LLM use: one live AI-agent run (4 model calls) plus three tiny connectivity checks. Bring-your-own-model round: one offline-guard smoke run per provider (Anthropic Messages, OpenAI-compatible), no testnet calls; one-payment-per-invoice round: one more Anthropic-format offline smoke (single payment).
+Repository public and demo posted by the author on 2026-10-31 (video https://youtu.be/XA7GZ8nHDVM, X post
+https://x.com/mubu_dot/status/2116372906745991631). Left: the submission (window opens 2026-11-01 08:00 CST),
+sent only after the author confirms the exact payload. No mainnet deployment or real-fund transaction has been
+performed. LLM use: one live AI-agent run (4 model calls) plus three tiny connectivity checks. Bring-your-own-model round: one offline-guard smoke run per provider (Anthropic Messages, OpenAI-compatible), no testnet calls; one-payment-per-invoice round: one more Anthropic-format offline smoke (single payment).

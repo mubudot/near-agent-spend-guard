@@ -152,6 +152,7 @@ export function renderEvents(root, events, nowMs, { limit = 12 } = {}) {
 const OUTCOME_LABEL = {
   completed: 'Paid', awaiting_owner_approval: 'Held for approval', refused: 'Refused on chain', failed: 'Failed',
   payout_failed: 'Payout failed', rejected: 'Rejected', in_flight: 'Payout in flight', success: 'Success', unconfirmed: 'Not executed yet',
+  other_contract: 'Not this guard',
 };
 
 export function renderTx(summary) {

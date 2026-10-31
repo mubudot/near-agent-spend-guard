@@ -66,11 +66,11 @@ run from the recorded hashes (no new transactions).
 
 ## Dashboard version (2026-10-30, replaces the 1:48 take for posting)
 
-2:07, 1080p, H.264/AAC, Piper TTS narration and burned-in captions, no music; kept outside the repository, not posted.
+2:07, 1080p, H.264/AAC, Piper TTS narration and burned-in captions, no music; kept outside the repository. Posted by the author on 2026-10-31: https://youtu.be/XA7GZ8nHDVM and attached to https://x.com/mubu_dot/status/2116372906745991631.
 Problem → architecture (the dashboard's "How it works" panel) → live dashboard before the take (policy, 0.8 NEAR
 already spent, spend-only key) → terminal: 0.1 NEAR paid, 0.3 NEAR held as request 8 → dashboard with the pending
 request and the owner's command → `approve 8` paid → `stranger.testnet` refused `E_NOT_ALLOWLISTED` → 0.1 NEAR
 refused `E_DAILY` → dashboard after (audit events, inspector decoding both refusals) → tests (26 + 76 + 9, re-run on a
-clean `git archive` of the dashboard commit) → outro. Terminal frames are rendered from the commands' real JSON output;
+clean `git archive` of the dashboard commit; later commits added tests, current counts in STATUS.md) → outro. Terminal frames are rendered from the commands' real JSON output;
 dashboard frames are headless-Chrome screenshots of `npm run dashboard` taken during the take. Hashes:
 [TESTNET_RUN.md](TESTNET_RUN.md#dashboard-video-take). Fits X's 2:20 limit for standard accounts.

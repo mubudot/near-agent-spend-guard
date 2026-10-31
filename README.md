@@ -8,7 +8,20 @@ natural-language request into a `spend` call without an AI service or API key; a
 
 *Built at NEAR HACKATHON (2026), track: AI Security & Defense (`security`). Testnet only.*
 
-**Demo video (2:07):** https://youtu.be/XA7GZ8nHDVM (YouTube)
+**Demo video (2:07):** https://youtu.be/XA7GZ8nHDVM (YouTube) · **Demo post on X:** https://x.com/mubu_dot/status/2116372906745991631
+
+**Judge quick start (no build, no key):** with Node 20+, run `npm ci --ignore-scripts`, then one offline simulation
+and two live read-only checks:
+- `npm run -s ai-agent -- --scenario injection` (fully offline) → a deliberately hijacked agent tries three
+  payments: the 0.1 NEAR invoice `completed`, 0.5 NEAR to `stranger.testnet` `refused` (`E_NOT_ALLOWLISTED`),
+  0.9 NEAR `awaiting_owner_approval` ([details](#optional-ai-agent-mode-and-a-prompt-injection-test));
+- `NEAR_CONTRACT_ACCOUNT=guard.spendguard-b31c91.testnet node demo/owner.mjs status agent.spendguard-b31c91.testnet`
+  (read-only, needs internet) → the live testnet policy and the agent's spend-only key (details under [Live on testnet](#live-on-testnet)).
+- `npm run dashboard`, then open http://127.0.0.1:5173/ (read-only, needs internet, no build step) → the
+  [live dashboard](#live-dashboard-web-ui): policy, today's spend against the daily cap, pending approvals, recent
+  decisions, and a transaction inspector that shows on-chain refusals with their `E_…` code.
+Every transaction of the recorded live run is linked in [docs/TESTNET_RUN.md](docs/TESTNET_RUN.md).
+The full local reproduction is [below](#reproduce-locally-do-x--see-y).
 
 An agent can be mistaken or prompt-injected. Receiver allowlists, per-transaction
 and daily caps, approval thresholds, and pause controls put the spending decision
@@ -27,9 +40,9 @@ owner (full-access keys)                agent (untrusted: LLM, script, bot)
 +-------------------- guard contract (holds the NEAR) --------------------+
 | spend(receiver, amount, memo)                                           |
 |   paused? -> allowlisted? -> per-tx cap? -> daily cap?  (else: refused) |
-|   amount <= approval threshold -> transfer now                          |
+|   amount <= approval threshold -> transfer scheduled now (no approval)  |
 |   amount >  approval threshold -> pending (budget + liquidity reserved) |
-| pending -> owner approve / reject, or expiry at the next UTC midnight   |
+| pending -> owner approve / reject; expires at the next UTC midnight     |
 | accepted spends, approvals, rejections, expiries -> NEP-297 events +    |
 | bounded on-chain audit ring; refusals are failed transactions           |
 +-------------------------------------------------------------------------+
@@ -43,18 +56,6 @@ owner (full-access keys)                agent (untrusted: LLM, script, bot)
 | change its own limits, add agents, withdraw, deploy code | owner-only methods; its key can call only `spend` on this contract |
 | burn the owner's NEAR on gas | the key's finite gas allowance (gas is separate from the funds the policy limits) |
 | keep going after it misbehaves | global or per-agent pause (`E_PAUSED`); owner removes the agent |
-
-**Judge quick start (30 s, no build, no key):** with Node 20+, run `npm ci --ignore-scripts`, then
-- `npm run -s ai-agent -- --scenario injection` (fully offline) → a deliberately hijacked agent tries three
-  payments: the 0.1 NEAR invoice `completed`, 0.5 NEAR to `stranger.testnet` `refused` (`E_NOT_ALLOWLISTED`),
-  0.9 NEAR `awaiting_owner_approval` ([details](#optional-ai-agent-mode-and-a-prompt-injection-test));
-- `NEAR_CONTRACT_ACCOUNT=guard.spendguard-b31c91.testnet node demo/owner.mjs status agent.spendguard-b31c91.testnet`
-  (read-only, needs internet) → the live testnet policy and the agent's spend-only key (details under [Live on testnet](#live-on-testnet)).
-- `npm run dashboard`, then open http://127.0.0.1:5173/ (read-only, needs internet, no build step) → the
-  [live dashboard](#live-dashboard-web-ui): policy, today's spend against the daily cap, pending approvals, recent
-  decisions, and a transaction inspector that shows on-chain refusals with their `E_…` code.
-Every transaction of the recorded live run is linked in [docs/TESTNET_RUN.md](docs/TESTNET_RUN.md).
-The full local reproduction is [below](#reproduce-locally-do-x--see-y).
 
 ## Architecture and behavior
 
@@ -137,10 +138,10 @@ from the repository root. No account, key, or API token is needed.
    npm test
    ```
 
-   → See `pass 78` and `fail 0`: 63 for the agent, owner CLI and AI-agent mode (exact amounts,
-   rejected invalid input, the outcome summary that tells "accepted" apart from "paid") and 15 for the
-   dashboard (`web/test/`: formatting, view model, outcomes of recorded testnet transactions, RPC client,
-   static-server path handling).
+   → See `pass 79` and `fail 0`: 63 for the agent, owner CLI and AI-agent mode (exact amounts,
+   rejected invalid input, the outcome summary that tells "accepted" apart from "paid") and 16 for the
+   dashboard (`web/test/`: formatting, view model, outcomes of recorded testnet transactions, a transaction
+   to another contract never shown as a guard decision, RPC client, static-server path handling).
 
 3. Preview an agent request without credentials:
 
@@ -175,8 +176,8 @@ from the repository root. No account, key, or API token is needed.
    npm run test:integration
    ```
 
-   → The first run downloads the official nearcore **2.14.0** sandbox (the release mainnet
-   and testnet run; ~36 MB download) into the ignored `.tmp/` directory. See `pass 9` and `fail 0`
+   → The first run downloads the official nearcore **2.14.0** sandbox (pinned in
+   `integration/guard.test.mjs`; ~36 MB download) into the ignored `.tmp/` directory. See `pass 9` and `fail 0`
    (1 test with 8 on-chain subtests): atomic deploy + private `new`, a third party unable to
    initialize, a transfer, reserve/reject/approve, a real failed-transfer callback rollback,
    the callback's measured gas (also at maximum occupancy: 32 agents × 32 allowlist
@@ -476,8 +477,17 @@ review only (see [docs/REVIEW_LOG.md](docs/REVIEW_LOG.md)).
 The default demo (`demo/agent.mjs`) is deliberately rule-based and makes no LLM calls. The optional
 AI-agent mode calls an LLM only with `--llm anthropic|openai|auto` (or `LLM_PROVIDER`); its default mock is offline and deterministic. AI tools used for development: Hark and OpenAI Codex (coding agents, including code
 review). Libraries: near-sdk 5.17.2 and borsh 1.8.1 (Rust), near-api-js 5.1.1, near-workspaces 5.0.0.
-All code was written for this hackathon; no earlier codebase is reused.
+All code was written for this hackathon; no earlier codebase is reused (see [Hackathon provenance](#hackathon-provenance-q-001--q-003)).
 Rule-by-rule checklist: [docs/REQUIREMENTS_CHECK.md](docs/REQUIREMENTS_CHECK.md).
+
+### Hackathon provenance (Q-001 / Q-003)
+
+There is no pre-hackathon baseline: the repository was created for NEAR HACKATHON, inside the window that opened
+with the 2026-10-19 announcement. The first commit is
+[`d086de7`](https://github.com/mubudot/near-agent-spend-guard/commit/d086de7) (2026-10-29 22:30 UTC), so the whole
+history is hackathon work: [all commits](https://github.com/mubudot/near-agent-spend-guard/commits/main), and the
+full code as of the first commit [here](https://github.com/mubudot/near-agent-spend-guard/tree/d086de7). The tag
+`hackathon-submission` marks the submitted commit. The only reused pieces are the open-source libraries listed above.
 
 Author: **mubudot**. Other projects by the same author (disclosed per Q-015): **paypal-guardrail-buyer**,
 an independent project (Python, PayPal Sandbox) entered in the PayPal AI Hackathon, not in NEAR HACKATHON;

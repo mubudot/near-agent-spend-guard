@@ -177,6 +177,21 @@ test('summarizeTx: unexecuted, payout failed and reject without event are not re
   assert.equal(summarizeTx(reject, CONTRACT).outcome, 'success');
 });
 
+test('summarizeTx: a transaction to another contract is never shown as a guard decision', () => {
+  for (const name of ['pending', 'refused_not_allowlisted', 'completed']) {
+    const foreign = structuredClone(fixture(name));
+    foreign.transaction.receiver_id = 'unrelated.testnet';
+    for (const r of foreign.receipts_outcome) if (r.outcome.executor_id === CONTRACT) r.outcome.executor_id = 'unrelated.testnet';
+    const s = summarizeTx(foreign, CONTRACT);
+    assert.equal(s.outcome, 'other_contract', name);
+    assert.equal(s.code, null, name);
+    assert.equal(s.requestId, null, name);
+    assert.equal(s.events.length, 0, name);
+    assert.match(s.reason, /unrelated\.testnet/);
+    assert.ok(!isProvisional(s));
+  }
+});
+
 test('latestOnly lets only the newest request publish', () => {
   const l = latestOnly();
   const a = l.next();

@@ -216,3 +216,18 @@ One Codex release review (judge-readability, modularity, correctness); modularit
 | R3 | Codex (must-fix) | A numeric `amount_near` was float-rounded before conversion (0.100000000000000005 → 0.1). | Only decimal strings accepted (+test). |
 | R4 | Codex (must-fix) | `owner.mjs add-agent --threshold 0` was rejected though the contract allows it (every payment needs approval). | Zero allowed for the threshold only (+test). |
 | R5 | Codex (must-fix) | Model examples in README were not executable. | Quoted placeholder values. |
+
+## Pre-submission judge's-eye review (2026-10-31)
+
+Rules re-read (https://nearhackathon.com/HACKATHON.md, unchanged). Codex acting as a strict screener: rule
+compliance, submission fields, security claims vs code, README first impression. `npm test` re-run; live testnet
+code hash, policy and spend-only key re-checked over RPC. Round 1 score 8/10.
+
+| ID | Source | Finding | Fix |
+| --- | --- | --- | --- |
+| J1 | Codex (must-fix, Q-003) | No provenance section: the README did not link the first commit, the history or a submission tag. | README "Hackathon provenance": no baseline, first commit `d086de7`, history link, `hackathon-submission` tag. |
+| J2 | Codex (should-fix) | Dashboard inspector did not check that a transaction was sent to the watched guard: another contract's `spend` returning `pending` (or panicking with `E_…`) would show as a guard decision. | `summarizeTx` returns `other_contract` ("Not this guard") unless `receiver_id` is the watched guard (+1 test over three recorded fixtures). |
+| J3 | Codex (should-fix) | "transfer now" read as settled; the transfer is a later receipt that can fail. | Diagram says "transfer scheduled now (no approval)"; submission text says the same. |
+| J4 | Codex (should-fix) | STATUS / checklists / video plan still said the repository was private and the video unposted. | Updated with the public repository, YouTube and X links (2026-10-31); older results kept as dated history. |
+| J5 | Codex (nit) | The sandbox was described as "the release mainnet and testnet run"; testnet RPC reported `2.14.0-rc.5` that day. | Now "nearcore 2.14.0 (pinned in `integration/guard.test.mjs`)". |
+| J6 | Codex (nit) | Quick start sat below the diagram and promised "30 s". | Moved directly under the video links; "one offline simulation and two live read-only checks". |

@@ -169,6 +169,12 @@ export function summarizeTx(result, contract) {
     hash: tx.hash, signer: tx.signer_id, receiverId: tx.receiver_id, method, args,
     events: events.map(describeEvent), code: null,
   };
+  // Only a transaction sent to the watched guard can be one of its decisions. Another contract's
+  // `spend` (or its panic) must not be shown as a guard approval or refusal.
+  if (contract && tx.receiver_id !== contract) {
+    return { ...base, outcome: 'other_contract', tone: 'neutral', requestId: null,
+      reason: `sent to ${tx.receiver_id ?? 'an unknown account'}, not the watched guard; not a guard decision` };
+  }
   const failure = result.status?.Failure;
   const executed = failure || (result.status && 'SuccessValue' in result.status);
   if (!executed) {
