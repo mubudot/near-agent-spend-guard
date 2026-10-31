@@ -1,5 +1,5 @@
 # Pinned so a fresh clone builds the same WASM that was verified against the nearcore 2.14.0
-# sandbox (the release mainnet and testnet run). rustup installs it automatically.
+# sandbox pinned in integration/guard.test.mjs. rustup installs it automatically.
 [toolchain]
 channel = "1.99.1"
 targets = ["wasm32-unknown-unknown"]

@@ -87,8 +87,8 @@ Agents must call directly: predecessor and signer accounts must match.
 Each policy has `per_tx_max`, `daily_max`, `allowlist`, `approval_threshold`, and
 `paused`. Amounts are decimal strings in yoctoNEAR (1 NEAR = 10^24 yoctoNEAR).
 An empty allowlist permits no receivers. A spend at or below the approval
-threshold transfers immediately; one above it creates a pending request, provided
-it remains within the hard caps. Hard-cap violations fail even with approval.
+threshold schedules its transfer immediately, without approval (the payment settles in a later receipt);
+one above it creates a pending request, provided it remains within the hard caps. Hard-cap violations fail even with approval.
 
 Pending requests reserve both daily budget and contract liquidity. They expire at
 the next UTC midnight derived from block time. Rejecting or expiring releases the
@@ -483,11 +483,16 @@ Rule-by-rule checklist: [docs/REQUIREMENTS_CHECK.md](docs/REQUIREMENTS_CHECK.md)
 ### Hackathon provenance (Q-001 / Q-003)
 
 There is no pre-hackathon baseline: the repository was created for NEAR HACKATHON, inside the window that opened
-with the 2026-10-19 announcement. The first commit is
-[`d086de7`](https://github.com/mubudot/near-agent-spend-guard/commit/d086de7) (2026-10-29 22:30 UTC), so the whole
-history is hackathon work: [all commits](https://github.com/mubudot/near-agent-spend-guard/commits/main), and the
-full code as of the first commit [here](https://github.com/mubudot/near-agent-spend-guard/tree/d086de7). The tag
-`hackathon-submission` marks the submitted commit. The only reused pieces are the open-source libraries listed above.
+with the 2026-10-19 announcement, so the whole history is hackathon work. Q-003's `pre-hackathon` tag is for
+pre-existing code; this repository has none, so there is no such tag.
+
+- First commit: [`d086de7`](https://github.com/mubudot/near-agent-spend-guard/commit/d086de7) (2026-10-29 22:30 UTC);
+  its page shows its full diff.
+- Everything after it, up to the submitted commit (tag `hackathon-submission`):
+  [`d086de7...hackathon-submission`](https://github.com/mubudot/near-agent-spend-guard/compare/d086de7...hackathon-submission).
+- All commits: [history](https://github.com/mubudot/near-agent-spend-guard/commits/main).
+
+The only reused pieces are the open-source libraries listed above.
 
 Author: **mubudot**. Other projects by the same author (disclosed per Q-015): **paypal-guardrail-buyer**,
 an independent project (Python, PayPal Sandbox) entered in the PayPal AI Hackathon, not in NEAR HACKATHON;

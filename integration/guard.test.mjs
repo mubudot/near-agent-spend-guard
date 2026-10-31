@@ -9,7 +9,7 @@ const require = createRequire(import.meta.url);
 const ONE = 10n ** 24n;
 const GAS = 100_000_000_000_000n;
 // near-workspaces 5.0.0 bundles neard 2.6.2, which rejects WASM from current Rust
-// (PrepareError: Deserialization). Use the nearcore release that mainnet/testnet run.
+// (PrepareError: Deserialization). Use the official nearcore 2.14.0 sandbox release instead.
 const SANDBOX_VERSION = '2.14.0';
 const PLATFORMS = { 'linux-x64': 'Linux-x86_64', 'linux-arm64': 'Linux-aarch64', 'darwin-arm64': 'Darwin-arm64', 'darwin-x64': 'Darwin-x86_64' };
 

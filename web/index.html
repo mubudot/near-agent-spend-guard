@@ -87,7 +87,7 @@
     <h2>How it works</h2>
     <svg class="diagram" viewBox="0 0 1120 300" role="img" aria-labelledby="how-title how-desc">
       <title id="how-title">Spend flow</title>
-      <desc id="how-desc">The agent calls spend with a function-call key. The guard contract checks pause, allowlist, per-transaction cap and daily cap. Small amounts are paid immediately, larger ones wait for owner approval, anything else is refused and no funds move.</desc>
+      <desc id="how-desc">The agent calls spend with a function-call key. The guard contract checks pause, allowlist, per-transaction cap and daily cap. Small amounts are sent without approval (the transfer runs at once and a callback records whether it succeeded), larger ones wait for owner approval, anything else is refused and no funds move.</desc>
       <defs>
         <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" class="arrowhead"/></marker>
       </defs>
@@ -119,7 +119,7 @@
       <path d="M624 225C700 225 700 255 776 255" class="edge edge-bad" marker-end="url(#arrow)"/>
 
       <g class="out out-ok"><rect x="780" y="40" width="330" height="60" rx="12"/>
-        <text x="800" y="66" class="t-out">≤ threshold → paid, no approval</text>
+        <text x="800" y="66" class="t-out">≤ threshold → sent, no approval</text>
         <text x="800" y="86" class="t-sub-l">transfer starts at once; a callback records it</text></g>
       <g class="out out-warn"><rect x="780" y="122" width="330" height="66" rx="12"/>
         <text x="800" y="148" class="t-out">above threshold → owner decides</text>

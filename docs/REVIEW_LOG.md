@@ -231,3 +231,9 @@ code hash, policy and spend-only key re-checked over RPC. Round 1 score 8/10.
 | J4 | Codex (should-fix) | STATUS / checklists / video plan still said the repository was private and the video unposted. | Updated with the public repository, YouTube and X links (2026-10-31); older results kept as dated history. |
 | J5 | Codex (nit) | The sandbox was described as "the release mainnet and testnet run"; testnet RPC reported `2.14.0-rc.5` that day. | Now "nearcore 2.14.0 (pinned in `integration/guard.test.mjs`)". |
 | J6 | Codex (nit) | Quick start sat below the diagram and promised "30 s". | Moved directly under the video links; "one offline simulation and two live read-only checks". |
+
+Round 2 (8.5/10): J2, J4 confirmed fixed, no regression in the inspector change. Follow-ups fixed: provenance lists
+the first commit's diff and a compare view `d086de7...hackathon-submission` (no `pre-hackathon` tag: no baseline
+exists); the release checklist marks the tag pending until it is published; "paid immediately" → "sent without
+approval" in the dashboard diagram and README; sandbox comments no longer call 2.14.0 the public-network release.
+Stopped after two rounds, as planned.
