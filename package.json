@@ -8,7 +8,7 @@
     "demo": "node demo/agent.mjs",
     "ai-agent": "node demo/ai-agent.mjs",
     "dashboard": "node web/server.mjs",
-    "test": "node --test demo/*.test.mjs web/test/*.test.mjs",
+    "test": "node --test demo/*.test.mjs web/test/*.test.mjs scripts/*.test.mjs",
     "test:integration": "node --test integration/*.test.mjs"
   },
   "dependencies": { "near-api-js": "5.1.1" },

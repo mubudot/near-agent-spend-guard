@@ -140,10 +140,11 @@ from the repository root. No account, key, or API token is needed.
    npm test
    ```
 
-   → See `pass 81` and `fail 0`: 63 for the agent, owner CLI and AI-agent mode (exact amounts,
+   → See `pass 88` and `fail 0`: 63 for the agent, owner CLI and AI-agent mode (exact amounts,
    rejected invalid input, the outcome summary that tells "accepted" apart from "paid") and 18 for the
    dashboard (`web/test/`: formatting, view model, outcomes of recorded testnet transactions, a transaction
-   to another contract never shown as a guard decision, RPC client, static-server path handling).
+   to another contract never shown as a guard decision, RPC client, static-server path handling, static bundle and demo hashes), plus 7 for
+   verification orchestration (explicit skips, CI skip rejection, sandbox TAP and stale build evidence).
 
 3. Preview an agent request without credentials:
 
@@ -192,6 +193,30 @@ from the repository root. No account, key, or API token is needed.
    `SPEND_GUARD_SANDBOX_BIN=/absolute/path/to/near-sandbox`. neard raises its open-file
    limit to 65535; on a host whose hard limit is lower the test reports an explicit skip,
    which is not evidence of on-chain success.
+
+## Verification workflow
+
+Run `node scripts/verify.mjs` → locked `npm ci --ignore-scripts`, Rust unit tests,
+Node tests, a release WASM build, then the integration suite with its pinned
+nearcore 2.14.0 sandbox. The runner checks the open-file limit and raises the soft
+limit to at least 65535 when the hard limit permits it. It records the tested commit,
+worktree state, full command logs, toolchain versions and WASM SHA-256 in
+`.tmp/verification/`. This hash identifies that build; it does not establish a
+byte-identical match to the deployed contract.
+
+If a local stage is unavailable, run, for example,
+`node scripts/verify.mjs --skip=rust,wasm,sandbox` → **incomplete**, exit 2.
+Available stage names are `install,rust,node,wasm,sandbox`. Failed stages exit 1;
+only a complete run exits 0. Skipping or failing the WASM build also prevents a
+sandbox run against a stale build.
+
+`.github/workflows/verify.yml` is available for manual dispatch, pushes and pull
+requests on an Ubuntu x86_64 runner. It runs `node scripts/verify.mjs --ci`, forbids
+skip flags, fails on a sandbox-reported skip, and retains verification artifacts
+for the tested commit even when verification fails. This workflow has not been run
+as part of this local change.
+
+Verification results are attached to the tested commit. A skipped sandbox run is reported as incomplete verification, not a pass.
 
 ## Live on testnet
 
