@@ -6,8 +6,8 @@ Checked against the live rules at https://nearhackathon.com/HACKATHON.md (re-rea
 | # | Rule | Status | Evidence / action |
 | --- | --- | --- | --- |
 | 1 | Public repository by Sun 2026-11-15 07:59 CST (UTC+08:00) | ✅ | Public since 2026-10-31: https://github.com/mubudot/near-agent-spend-guard (MIT). Made public by the human. |
-| 2 | README for machine and human readers: what it is, the problem, "do X → see Y" steps, no marketing (Procedure §1, Q-017) | ✅ | README: purpose, architecture, 5 reproduction steps with expected output; verified from a fresh clone on a clean x86_64 Linux host (docs/REVIEW_LOG.md). |
-| 3 | Reproducible README (Q-012, Q-017 screening by Claude Code / Codex) | ✅ | Fresh clone + README only: no hand-set env vars, toolchain pinned by `rust-toolchain.toml`, sandbox auto-downloaded by the integration test. Final re-check 2026-10-30 (ARM64): `cargo test` 26 passed, `npm test` 23 passed (39 after the AI-agent round; 61 in the 2026-10-30 release check, fresh clone), demo preview and `.near` rejection as stated, WASM builds, live `status` read works; integration skipped (host nofile limit 4096 < 65535). Code-hash claim narrowed to the x86_64 build host (README). |
+| 2 | README for machine and human readers: what it is, the problem, "do X → see Y" steps, no marketing (Procedure §1, Q-017) | ✅ | README: purpose, architecture, reproduction steps with expected output. Current local evidence for private code snapshot `6c0d225` is in the commit-specific verification below; earlier fresh-clone checks remain historical (docs/REVIEW_LOG.md). |
+| 3 | Reproducible README (Q-012, Q-017 screening by Claude Code / Codex) | ⏳ | Private code snapshot `6c0d225`: locked npm install, 88 Node tests and 26 Rust unit tests passed; WASM release build succeeded; sandbox skipped (hard nofile 4096 < 65535). Verification is incomplete. See current commands/results below; no CI execution is claimed. |
 | 4 | Demo post on X saying it was built at NEAR HACKATHON, with video or screenshots (Start here §3) | ✅ | Posted by the human: https://x.com/mubu_dot/status/2116372906745991631 ("Built at NEAR HACKATHON", tags @NEARProtocol and #NEARHackathon, 2:07 demo video attached; also on YouTube: https://youtu.be/XA7GZ8nHDVM). Script and recording plan: [VIDEO_PLAN.md](VIDEO_PLAN.md). A video is the safe choice (Q-012: screenshots are not enough when judges cannot open the demo); the testnet contract is viewable by anyone. |
 | 5 | Local-only demo acceptable; hosted demo a plus (Q-012) | ✅ | Local sandbox + offline demo, **plus** a live testnet deployment `guard.spendguard-b31c91.testnet` anyone can query ([TESTNET_RUN.md](TESTNET_RUN.md)). Keep its accounts as they are through 2026-11-18, ideally 2026-11-25 (testnet accounts do not expire; do not delete them). |
 | 6 | Testnet-only projects eligible (Q-010) | ✅ | Deployed on testnet only; scripts accept only `.testnet` accounts; `demo/parse.mjs` rejects non-`.testnet` receivers and accounts. No mainnet deploy. |
@@ -19,10 +19,28 @@ Checked against the live rules at https://nearhackathon.com/HACKATHON.md (re-rea
 | 12 | Existing product on another chain disclosed (Q-002) | ➖ | New project, NEAR only. |
 | 13 | One person, at most 2 different projects, each README names the other (Q-015) | ✅ | This is the author's only NEAR HACKATHON entry so far. README still discloses the author's other hackathon project, **paypal-guardrail-buyer** (PayPal AI Hackathon, independent, no shared code), and that README names this one. If a second NEAR HACKATHON project is entered, both READMEs must name each other. |
 | 14 | Mandatory integrations (Q-011) | ✅ | None needed; own NEAR contract fits the track. |
-| 15 | Track fit | ✅ | `security` (spending limits, policy engine, function-call keys: the track's own hints); also fits `agents`. |
+| 15 | Track fit | ✅ | `security`: enforced spending limits and restricted keys; `agents`: an untrusted agent payment tool. `business` is a possible treasury/procurement use, with no autonomous business demonstrated. |
 | 16 | Repo stays public through judging (Q-014) | ⏳ | Public since 2026-10-31; keep it public until results (by 2026-11-19). |
 | 17 | Submission window Sun 2026-11-01 08:00 → Sun 2026-11-15 07:59 CST; one submission per project; payload confirmed by the human | ⏳ | Not submitted. All fields (name, lead, email, team size, tracks, mainnet payout account, repo URL, demo URL, description, consent) come from the human; never invented. |
 | 18 | `website` field is a spam trap; send exactly the listed fields | ⏳ | Applies at submission time. |
+
+## Commit-specific verification (2026-10-31)
+
+Current code snapshot: `6c0d2255561b24734809063f7a86e09e10a676fc`, private local
+`judge-audit`; later review edits are documentation only. Full commands and limitations are in [RELEASE_CHECKLIST.md](../RELEASE_CHECKLIST.md#commit-specific-local-verification-2026-10-31).
+
+- `node scripts/verify.mjs --skip=rust,wasm,sandbox`: **incomplete**, exit 2;
+  locked npm installation passed; `npm test`: **88 passed, 0 failed, 0 skipped**.
+- `cargo test --locked`: **26 passed, 0 failed,
+  0 ignored**; doc tests: **0**.
+- Release WASM build: succeeded; SHA-256
+  `cfef43f3ff9e7898766ef76efb439aae103025396e9278bd56862e2edb0f8c92`.
+- `npm run test:integration`: **0 passed, 0 failed, 1 skipped**; hard nofile is
+  4096, below the pinned sandbox's required 65535. No on-chain subtests ran.
+- Static HTTP/MIME checks, the five recorded transaction lookups, explicit archival
+  lookup and public RPC CORS preflights passed. Headless browser rendering did not
+  complete. Hosted HTTPS/browser checks remain planned; Pages has not been deployed.
+- Verification CI is available, not executed. The local changes have not been pushed.
 
 ## Open before submission
 

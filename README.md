@@ -8,6 +8,9 @@ natural-language request into a `spend` call without an AI service or API key; a
 
 *Built at NEAR HACKATHON (2026), track: AI Security & Defense (`security`). Testnet only.*
 
+Track fit: `security` bounds agent spending with contract policies and restricted keys;
+`agents` provides a payment tool for untrusted agents. `business` is a possible treasury/procurement use, not a demonstrated autonomous business.
+
 **Demo video (2:07):** https://youtu.be/XA7GZ8nHDVM (YouTube) · **Demo post on X:** https://x.com/mubu_dot/status/2116372906745991631
 
 <!-- After approved publishing and HTTPS/module/RPC checks, add: Open the live testnet dashboard — no installation, wallet or key required. Link to the verified Pages URL. -->
@@ -32,6 +35,17 @@ key on its own account restricted to this contract's `spend` method, with a fini
 gas allowance. The demo checks those permissions before submission. Gas allowance
 pays for calls; the contract's policy separately limits the funds it transfers.
 
+The guard bounds authority; it does not validate purchase intent. An allowlisted
+destination can still receive unwanted payments within the configured limits.
+
+**Planned initial user and pilot:** a team running an API-purchasing agent. Run
+100 testnet purchase requests, including 20 injected requests to non-allowlisted
+destinations → measure refusal codes and receiver balance changes, with a target
+of all 20 refused and zero NEAR transferred to those destinations. Also record
+completed legitimate purchases and owner-review counts. This is a proposed pilot,
+not a claimed user, completed validation or measured adoption. The demonstrated
+merchant is an entrant-controlled test account, not an independent purchased service.
+
 ## At a glance
 
 ```
@@ -52,7 +66,7 @@ owner (full-access keys)                agent (untrusted: LLM, script, bot)
 
 | If the agent (or whoever hijacked it) tries to … | … this stops it |
 | --- | --- |
-| pay an address it was talked into (prompt injection, scam) | receiver allowlist; empty allowlist = nothing payable (`E_NOT_ALLOWLISTED`) |
+| pay a non-allowlisted address it was talked into (prompt injection, scam) | receiver allowlist; empty allowlist = nothing payable (`E_NOT_ALLOWLISTED`) |
 | drain the budget in one call, or in many small ones | per-transaction cap and UTC-daily cap, pending requests counted (`E_PER_TX`, `E_DAILY`) |
 | make a large payment without a human | approval threshold → pending request the owner must approve |
 | change its own limits, add agents, withdraw, deploy code | owner-only methods; its key can call only `spend` on this contract |

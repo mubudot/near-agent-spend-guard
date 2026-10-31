@@ -12,6 +12,15 @@ narration uses an already installed `piper-tts` and
 permission to use and preserve its license attribution when distributing it.
 The renderer rejects a narrated cut that would reach three minutes.
 
+This **130-second first-run replay** is distinct from the **127-second (2:07)
+published dashboard video** linked in the root README. The published cut uses
+headless-Chrome dashboard screenshots and terminal frames rendered from the real
+JSON output of the later [Dashboard video take](../../docs/TESTNET_RUN.md#dashboard-video-take),
+as documented in [VIDEO_PLAN.md](../../docs/VIDEO_PLAN.md#dashboard-version-2026-10-30-replaces-the-148-take-for-posting).
+`make_demo.sh` / `make_demo.py` here render the first-run replay, not that dashboard
+cut. This directory does not document a renderer for the published cut; the
+replay's generated captions and scene timings do not match it.
+
 This is an explicitly labeled edited replay of the first run in
 `docs/TESTNET_RUN.md`, not a new screen recording. Policy amounts are displayed in
 NEAR and terminal responses are condensed. It includes immediate settlement,
