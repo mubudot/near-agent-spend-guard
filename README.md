@@ -10,6 +10,8 @@ natural-language request into a `spend` call without an AI service or API key; a
 
 **Demo video (2:07):** https://youtu.be/XA7GZ8nHDVM (YouTube) · **Demo post on X:** https://x.com/mubu_dot/status/2116372906745991631
 
+<!-- After approved publishing and HTTPS/module/RPC checks, add: Open the live testnet dashboard — no installation, wallet or key required. Link to the verified Pages URL. -->
+
 **Judge quick start (no build, no key):** with Node 20+, run `npm ci --ignore-scripts`, then one offline simulation
 and two live read-only checks:
 - `npm run -s ai-agent -- --scenario injection` (fully offline) → a deliberately hijacked agent tries three
@@ -138,8 +140,8 @@ from the repository root. No account, key, or API token is needed.
    npm test
    ```
 
-   → See `pass 79` and `fail 0`: 63 for the agent, owner CLI and AI-agent mode (exact amounts,
-   rejected invalid input, the outcome summary that tells "accepted" apart from "paid") and 16 for the
+   → See `pass 81` and `fail 0`: 63 for the agent, owner CLI and AI-agent mode (exact amounts,
+   rejected invalid input, the outcome summary that tells "accepted" apart from "paid") and 18 for the
    dashboard (`web/test/`: formatting, view model, outcomes of recorded testnet transactions, a transaction
    to another contract never shown as a guard decision, RPC client, static-server path handling).
 
@@ -232,6 +234,10 @@ A read-only web dashboard for the deployed guard. It runs in the browser, sends 
 transaction lookups to a public **testnet** RPC (FastNEAR; archival node for older transactions), holds no
 key and cannot sign. Owner actions stay in the CLI (`demo/owner.mjs`); the dashboard shows the exact command.
 No build step: plain ES modules served by a zero-dependency Node server bound to `127.0.0.1`.
+For plain static hosting, serve only `web/index.html`, `web/styles.css` and `web/src/`
+with JavaScript module MIME types (`.mjs`). The HTML carries the CSP; RPC calls go
+directly to public HTTPS testnet endpoints, including archival transaction lookup.
+The Pages workflow is available for manual dispatch only; no hosted URL is configured here.
 
 1. Start it (Node 20+; no `npm ci` needed for the dashboard itself):
 
