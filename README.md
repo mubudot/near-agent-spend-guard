@@ -521,7 +521,7 @@ review only (see [docs/REVIEW_LOG.md](docs/REVIEW_LOG.md)).
 
 The default demo (`demo/agent.mjs`) is deliberately rule-based and makes no LLM calls. The optional
 AI-agent mode calls an LLM only with `--llm anthropic|openai|auto` (or `LLM_PROVIDER`); its default mock is offline and deterministic. AI tools used for development: Hark and OpenAI Codex (coding agents, including code
-review). Libraries: near-sdk 5.17.2 and borsh 1.8.1 (Rust), near-api-js 5.1.1, near-workspaces 5.0.0.
+review); Claude (Anthropic, via API) for an independent review of the judge-audit changes. Libraries: near-sdk 5.17.2 and borsh 1.8.1 (Rust), near-api-js 5.1.1, near-workspaces 5.0.0.
 All code was written for this hackathon; no earlier codebase is reused (see [Hackathon provenance](#hackathon-provenance-q-001--q-003)).
 Rule-by-rule checklist: [docs/REQUIREMENTS_CHECK.md](docs/REQUIREMENTS_CHECK.md).
 
