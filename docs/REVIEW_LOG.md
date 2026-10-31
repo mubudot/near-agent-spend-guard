@@ -236,4 +236,5 @@ Round 2 (8.5/10): J2, J4 confirmed fixed, no regression in the inspector change.
 the first commit's diff and a compare view `d086de7...hackathon-submission` (no `pre-hackathon` tag: no baseline
 exists); the release checklist marks the tag pending until it is published; "paid immediately" → "sent without
 approval" in the dashboard diagram and README; sandbox comments no longer call 2.14.0 the public-network release.
-Stopped after two rounds, as planned.
+Round 3 (confirmation): R2-2..R2-4 fixed; for the strict Q-003 reading a dedicated branch `near-hackathon`
+(same commits as `main`) was added next to the `hackathon-submission` tag. Stopped there.

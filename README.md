@@ -491,6 +491,8 @@ pre-existing code; this repository has none, so there is no such tag.
 - Everything after it, up to the submitted commit (tag `hackathon-submission`):
   [`d086de7...hackathon-submission`](https://github.com/mubudot/near-agent-spend-guard/compare/d086de7...hackathon-submission).
 - All commits: [history](https://github.com/mubudot/near-agent-spend-guard/commits/main).
+- Dedicated branch (Q-003): [`near-hackathon`](https://github.com/mubudot/near-agent-spend-guard/tree/near-hackathon),
+  the same commits as `main`, because the repository itself was created for the hackathon.
 
 The only reused pieces are the open-source libraries listed above.
 
