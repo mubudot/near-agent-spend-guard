@@ -8,7 +8,7 @@ natural-language request into a `spend` call without an AI service or API key; a
 
 *Built at NEAR HACKATHON (2026), track: AI Security & Defense (`security`). Testnet only.*
 
-**Demo video (2:07):** https://youtu.be/XA7GZ8nHDVM (YouTube; link added when the video is published)
+**Demo video (2:07):** https://youtu.be/XA7GZ8nHDVM (YouTube)
 
 An agent can be mistaken or prompt-injected. Receiver allowlists, per-transaction
 and daily caps, approval thresholds, and pause controls put the spending decision
