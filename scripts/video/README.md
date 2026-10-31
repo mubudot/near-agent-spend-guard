@@ -18,8 +18,8 @@ headless-Chrome dashboard screenshots and terminal frames rendered from the real
 JSON output of the later [Dashboard video take](../../docs/TESTNET_RUN.md#dashboard-video-take),
 as documented in [VIDEO_PLAN.md](../../docs/VIDEO_PLAN.md#dashboard-version-2026-10-30-replaces-the-148-take-for-posting).
 `make_demo.sh` / `make_demo.py` here render the first-run replay, not that dashboard
-cut. This directory does not document a renderer for the published cut; the
-replay's generated captions and scene timings do not match it.
+cut; how the published cut was assembled is described in VIDEO_PLAN.md (linked above).
+The replay's generated captions and scene timings do not match the published cut.
 
 This is an explicitly labeled edited replay of the first run in
 `docs/TESTNET_RUN.md`, not a new screen recording. Policy amounts are displayed in

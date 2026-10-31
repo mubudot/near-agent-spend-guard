@@ -210,7 +210,7 @@ from the repository root. No account, key, or API token is needed.
 
 ## Verification workflow
 
-Run `node scripts/verify.mjs` → locked `npm ci --ignore-scripts`, Rust unit tests,
+Run `node scripts/verify.mjs` (no `--skip`) → locked `npm ci --ignore-scripts`, Rust unit tests,
 Node tests, a release WASM build, then the integration suite with its pinned
 nearcore 2.14.0 sandbox. The runner checks the open-file limit and raises the soft
 limit to at least 65535 when the hard limit permits it. It records the tested commit,

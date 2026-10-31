@@ -11,7 +11,9 @@ test('static bundle uses local assets and direct HTTPS RPC, without server endpo
   const source = modules.map((name) => read(`../src/${name}`)).join('\n');
   assert.match(html, /src="src\/app\.mjs"/);
   assert.match(html, /href="styles\.css"/);
-  assert.match(html, /Content-Security-Policy[^>]+connect-src https:;/);
+  const csp = html.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/);
+  assert.ok(csp, 'CSP meta tag present');
+  assert.equal(csp[1], "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https:; base-uri 'none'; form-action 'none'");
   assert.doesNotMatch(source, /(?:server\.mjs|\/api\/|\/rpc\b|\/config\b|node:)/);
   // Browser imports must resolve entirely inside the published src/ directory.
   for (const [, path] of source.matchAll(/from\s+['"]([^'"]+)['"]/g)) {

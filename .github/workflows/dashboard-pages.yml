@@ -15,7 +15,6 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
-      pages: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5

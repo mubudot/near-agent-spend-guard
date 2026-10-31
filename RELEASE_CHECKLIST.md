@@ -14,6 +14,7 @@ Full rule-by-rule table: [docs/REQUIREMENTS_CHECK.md](docs/REQUIREMENTS_CHECK.md
 | 7 | Tests and README counts agree | — | README expected counts vs. commit-specific results below | ✅ Node: 88 passed; Rust and sandbox evidence stated separately. STATUS.md retains historical runs |
 | 8 | Repo public, X demo post, submission payload confirmed by the human | Start here §2–4 | human action | ✅ repo public + X post live (2026-10-31); ⏳ payload confirmation and sending (window opens 2026-11-01 08:00 CST) |
 | 9 | Provenance: first commit, history and submission tag linked from the README | Q-001, Q-003 | README "Hackathon provenance"; `git ls-remote origin near-hackathon hackathon-submission` | ✅ Audited public base `938b272` contains provenance links; these `judge-audit` changes remain private local commits |
+| 10 | Live dashboard link (only after the user approves publishing) | Q-012 (hosted demo is a plus) | Run the manual Pages workflow, check HTTPS, module MIME types, RPC and archival lookup in a browser, then replace the README placeholder comment with the verified link | ⏳ not published |
 
 ## Commit-specific local verification (2026-10-31)
 
