@@ -273,8 +273,25 @@ test('rpc client: https only, error causes, archival fallback, sender retry', as
   await assert.rejects(findTx(wrong, 'HASH', [AGENT]), /expected "testnet"/);
   assert.deepEqual(mainnet.calls.map((c) => c.method), ['status']);
 
-  const down = createClient({ url: 'https://rpc.example', fetchImpl: async () => { throw new TypeError('fail'); } });
+  // A fetch that throws (request never answered) is retried a bounded number of times; answers are not.
+  let attempts = 0;
+  const down = createClient({ url: 'https://rpc.example', retryDelaysMs: [0, 0, 0], fetchImpl: async () => { attempts++; throw new TypeError('fail'); } });
   await assert.rejects(down.call('status', []), /network error/);
+  assert.equal(attempts, 4);
+  let flakyCalls = 0;
+  const flaky = createClient({ url: 'https://rpc.example', retryDelaysMs: [0], fetchImpl: async () => {
+    if (++flakyCalls === 1) throw new TypeError('fail');
+    return { ok: true, status: 200, json: async () => ({ result: { chain_id: 'testnet' } }) };
+  } });
+  assert.deepEqual(await flaky.call('status', []), { chain_id: 'testnet' });
+  assert.equal(flakyCalls, 2);
+  let rpcErrorCalls = 0;
+  const answered = createClient({ url: 'https://rpc.example', retryDelaysMs: [0, 0], fetchImpl: async () => {
+    rpcErrorCalls++;
+    return { ok: true, status: 200, json: async () => ({ error: { cause: { name: 'UNKNOWN_ACCOUNT' } } }) };
+  } });
+  await assert.rejects(answered.call('status', []), /UNKNOWN_ACCOUNT/);
+  assert.equal(rpcErrorCalls, 1);
   const html = createClient({ url: 'https://rpc.example', fetchImpl: async () => ({ ok: false, status: 502, json: async () => { throw new Error('html'); } }) });
   await assert.rejects(html.call('status', []), /HTTP 502/);
 });

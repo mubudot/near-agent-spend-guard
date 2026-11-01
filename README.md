@@ -13,7 +13,7 @@ Track fit: `security` bounds agent spending with contract policies and restricte
 
 **Demo video (2:07):** https://youtu.be/XA7GZ8nHDVM (YouTube) · **Demo post on X:** https://x.com/mubu_dot/status/2116372906745991631
 
-<!-- After approved publishing and HTTPS/module/RPC checks, add: Open the live testnet dashboard — no installation, wallet or key required. Link to the verified Pages URL. -->
+**[Open the live testnet dashboard](https://mubudot.github.io/near-agent-spend-guard/) — no installation, wallet or key required.** https://mubudot.github.io/near-agent-spend-guard/ (read-only; published from `web/` by the manual GitHub Pages workflow; [what it shows](#live-dashboard-web-ui)).
 
 **Judge quick start (no build, no key):** with Node 20+, run `npm ci --ignore-scripts`, then one offline simulation
 and two live read-only checks:

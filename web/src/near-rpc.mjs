@@ -15,11 +15,28 @@ export class RpcError extends Error {
 const toBase64 = (text) => btoa(String.fromCharCode(...new TextEncoder().encode(text)));
 const fromBytes = (bytes) => new TextDecoder().decode(Uint8Array.from(bytes));
 
-export function createClient({ url = DEFAULT_RPC, archivalUrl = DEFAULT_ARCHIVAL_RPC, fetchImpl = globalThis.fetch, timeoutMs = 15_000 } = {}) {
+// All calls are reads (status, view, tx), so a request that never reached the RPC (fetch threw:
+// offline, a dropped connection, a browser still bringing its network up) is safe to retry.
+const NETWORK_RETRY_DELAYS_MS = [1_000, 3_000, 6_000];
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export function createClient({ url = DEFAULT_RPC, archivalUrl = DEFAULT_ARCHIVAL_RPC, fetchImpl = globalThis.fetch, timeoutMs = 15_000, retryDelaysMs = NETWORK_RETRY_DELAYS_MS } = {}) {
   if (!/^https:\/\//.test(url)) throw new Error('RPC URL must use https');
   let id = 0;
 
   async function call(method, params, endpoint = url) {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await callOnce(method, params, endpoint);
+      } catch (error) {
+        // Only "network error" is retried: timeouts, HTTP errors and RPC errors are answers.
+        if (!(error instanceof RpcError) || error.cause !== 'network error' || attempt >= retryDelaysMs.length) throw error;
+        await sleep(retryDelaysMs[attempt]);
+      }
+    }
+  }
+
+  async function callOnce(method, params, endpoint) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     let body;
