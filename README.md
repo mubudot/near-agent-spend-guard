@@ -227,8 +227,10 @@ sandbox run against a stale build.
 `.github/workflows/verify.yml` is available for manual dispatch, pushes and pull
 requests on an Ubuntu x86_64 runner. It runs `node scripts/verify.mjs --ci`, forbids
 skip flags, fails on a sandbox-reported skip, and retains verification artifacts
-for the tested commit even when verification fails. This workflow has not been run
-as part of this local change.
+for the tested commit even when verification fails. Every push to `main` runs it
+in public: see the [Actions history](https://github.com/mubudot/near-agent-spend-guard/actions/workflows/verify.yml).
+First complete run on GitHub-hosted x86_64: [run 41269150414](https://github.com/mubudot/near-agent-spend-guard/actions/runs/41269150414) at `21aeec3`, all five stages
+passed (Rust 26, Node 88, WASM build, sandbox 9 of 9 with nearcore 2.14.0, nothing skipped).
 
 Verification results are attached to the tested commit. A skipped sandbox run is reported as incomplete verification, not a pass.
 
@@ -276,7 +278,8 @@ No build step: plain ES modules served by a zero-dependency Node server bound to
 For plain static hosting, serve only `web/index.html`, `web/styles.css` and `web/src/`
 with JavaScript module MIME types (`.mjs`). The HTML carries the CSP; RPC calls go
 directly to public HTTPS testnet endpoints, including archival transaction lookup.
-The Pages workflow is available for manual dispatch only; no hosted URL is configured here.
+The same files are published at **https://mubudot.github.io/near-agent-spend-guard/** by the GitHub Pages workflow
+(`.github/workflows/dashboard-pages.yml`, manual dispatch only, so a push publishes nothing by itself).
 
 1. Start it (Node 20+; no `npm ci` needed for the dashboard itself):
 

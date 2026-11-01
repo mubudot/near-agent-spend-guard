@@ -7,9 +7,9 @@ Checked against the live rules at https://nearhackathon.com/HACKATHON.md (re-rea
 | --- | --- | --- | --- |
 | 1 | Public repository by Sun 2026-11-15 07:59 CST (UTC+08:00) | ✅ | Public since 2026-10-31: https://github.com/mubudot/near-agent-spend-guard (MIT). Made public by the human. |
 | 2 | README for machine and human readers: what it is, the problem, "do X → see Y" steps, no marketing (Procedure §1, Q-017) | ✅ | README: purpose, architecture, reproduction steps with expected output. Current local evidence for private code snapshot `6c0d225` is in the commit-specific verification below; earlier fresh-clone checks remain historical (docs/REVIEW_LOG.md). |
-| 3 | Reproducible README (Q-012, Q-017 screening by Claude Code / Codex) | ⏳ | Private code snapshot `6c0d225`: locked npm install, 88 Node tests and 26 Rust unit tests passed; WASM release build succeeded; sandbox skipped (hard nofile 4096 < 65535). Verification is incomplete. See current commands/results below; no CI execution is claimed. |
+| 3 | Reproducible README (Q-012, Q-017 screening by Claude Code / Codex) | ✅ | Public CI ([run 41269150414](https://github.com/mubudot/near-agent-spend-guard/actions/runs/41269150414), commit `21aeec3`): locked npm install, 26 Rust unit tests, 88 Node tests, WASM release build and the sandbox suite (9 of 9, nothing skipped) passed. Every push re-runs it. Earlier local ARM64 snapshot kept below. |
 | 4 | Demo post on X saying it was built at NEAR HACKATHON, with video or screenshots (Start here §3) | ✅ | Posted by the human: https://x.com/mubu_dot/status/2116372906745991631 ("Built at NEAR HACKATHON", tags @NEARProtocol and #NEARHackathon, 2:07 demo video attached; also on YouTube: https://youtu.be/XA7GZ8nHDVM). Script and recording plan: [VIDEO_PLAN.md](VIDEO_PLAN.md). A video is the safe choice (Q-012: screenshots are not enough when judges cannot open the demo); the testnet contract is viewable by anyone. |
-| 5 | Local-only demo acceptable; hosted demo a plus (Q-012) | ✅ | Local sandbox + offline demo, **plus** a live testnet deployment `guard.spendguard-b31c91.testnet` anyone can query ([TESTNET_RUN.md](TESTNET_RUN.md)). Keep its accounts as they are through 2026-11-18, ideally 2026-11-25 (testnet accounts do not expire; do not delete them). |
+| 5 | Local-only demo acceptable; hosted demo a plus (Q-012) | ✅ | Local sandbox + offline demo, **plus** a live testnet deployment `guard.spendguard-b31c91.testnet` anyone can query ([TESTNET_RUN.md](TESTNET_RUN.md)) and a hosted read-only dashboard, https://mubudot.github.io/near-agent-spend-guard/ (GitHub Pages; keep online through 2026-11-18, ideally 2026-11-25). Keep its accounts as they are through 2026-11-18, ideally 2026-11-25 (testnet accounts do not expire; do not delete them). |
 | 6 | Testnet-only projects eligible (Q-010) | ✅ | Deployed on testnet only; scripts accept only `.testnet` accounts; `demo/parse.mjs` rejects non-`.testnet` receivers and accounts. No mainnet deploy. |
 | 7 | No mainnet deploy / signing / spending without explicit human confirmation | ✅ | None performed; only free faucet testnet NEAR was signed for. Mainnet appears only in the prize payout account the human provides. |
 | 8 | No committed secrets; keys in environment variables | ✅ | `.env.example` has empty placeholders; `.env*` and the `.near/` key directory are git-ignored; testnet keys were kept outside the repository and never printed; privacy scan in docs/REVIEW_LOG.md. |
@@ -27,7 +27,7 @@ Checked against the live rules at https://nearhackathon.com/HACKATHON.md (re-rea
 ## Commit-specific verification (2026-10-31)
 
 Current code snapshot: `6c0d2255561b24734809063f7a86e09e10a676fc`, private local
-`judge-audit`; later review edits are documentation only. Full commands and limitations are in [RELEASE_CHECKLIST.md](../RELEASE_CHECKLIST.md#commit-specific-local-verification-2026-10-31).
+`judge-audit`; later commits changed dashboard code and tests, see the public CI run below. Full commands and limitations are in [RELEASE_CHECKLIST.md](../RELEASE_CHECKLIST.md#commit-specific-local-verification-2026-10-31).
 
 - `node scripts/verify.mjs --skip=rust,wasm,sandbox`: **incomplete**, exit 2;
   locked npm installation passed; `npm test`: **88 passed, 0 failed, 0 skipped**.
@@ -39,8 +39,14 @@ Current code snapshot: `6c0d2255561b24734809063f7a86e09e10a676fc`, private local
   4096, below the pinned sandbox's required 65535. No on-chain subtests ran.
 - Static HTTP/MIME checks, the five recorded transaction lookups, explicit archival
   lookup and public RPC CORS preflights passed. Headless browser rendering did not
-  complete. Hosted HTTPS/browser checks remain planned; Pages has not been deployed.
-- Verification CI is available, not executed. The local changes have not been pushed.
+  complete locally at that time.
+
+## Public verification (2026-11-01)
+
+- [GitHub Actions run 41269150414](https://github.com/mubudot/near-agent-spend-guard/actions/runs/41269150414) at `21aeec3`: all five stages passed on x86_64,
+  including the sandbox suite (**9 passed, 0 skipped**, nearcore 2.14.0); Rust 26, Node 88.
+- Live dashboard https://mubudot.github.io/near-agent-spend-guard/ (GitHub Pages, manual workflow): HTTPS, JavaScript module MIME types,
+  live testnet reads and `?tx=` lookups verified in a browser. Hosted demo kept online through judging (Q-012).
 
 ## Open before submission
 
