@@ -229,7 +229,7 @@ requests on an Ubuntu x86_64 runner. It runs `node scripts/verify.mjs --ci`, for
 skip flags, fails on a sandbox-reported skip, and retains verification artifacts
 for the tested commit even when verification fails. Every push to `main` runs it
 in public: see the [Actions history](https://github.com/mubudot/near-agent-spend-guard/actions/workflows/verify.yml).
-First complete run on GitHub-hosted x86_64: [run 41269150414](https://github.com/mubudot/near-agent-spend-guard/actions/runs/41269150414) at `21aeec3`, all five stages
+Complete verification run for `21aeec3` on GitHub-hosted x86_64: [run 41269150414](https://github.com/mubudot/near-agent-spend-guard/actions/runs/41269150414) at `21aeec3`, all five stages
 passed (Rust 26, Node 88, WASM build, sandbox 9 of 9 with nearcore 2.14.0, nothing skipped).
 
 Verification results are attached to the tested commit. A skipped sandbox run is reported as incomplete verification, not a pass.
@@ -540,7 +540,8 @@ pre-existing code; this repository has none, so there is no such tag.
   [`d086de7...hackathon-submission`](https://github.com/mubudot/near-agent-spend-guard/compare/d086de7...hackathon-submission).
 - All commits: [history](https://github.com/mubudot/near-agent-spend-guard/commits/main).
 - Dedicated branch (Q-003): [`near-hackathon`](https://github.com/mubudot/near-agent-spend-guard/tree/near-hackathon),
-  the same commits as `main`, because the repository itself was created for the hackathon.
+  and tag `hackathon-submission` pin the snapshot that was tagged for submission (`938b272`); later reviewed
+  changes (hosted dashboard publication, public CI) are on `main`. The repository itself was created for the hackathon.
 
 The only reused pieces are the open-source libraries listed above.
 

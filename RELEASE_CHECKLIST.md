@@ -32,7 +32,7 @@ run's `verification-<sha>` artifact (30-day retention). Later pushes run the sam
 Code snapshot: `6c0d2255561b24734809063f7a86e09e10a676fc` on private local
 `judge-audit`, following public base `938b272`. Later commits changed dashboard code
 (`web/src/app.mjs`, `web/src/near-rpc.mjs`), its tests and workflow permissions; their
-evidence is the public CI run in the next section, not this snapshot. Host: Linux ARM64, Node v22.23.3, npm 10.9.9, pinned Rust 1.99.1
+evidence is the public CI run in the section above, not this snapshot. Everything below describes the 2026-10-31 local run only. Host: Linux ARM64, Node v22.23.3, npm 10.9.9, pinned Rust 1.99.1
 (Zig used as the C compiler/linker on this ARM64 host). Rule/publication entries above retain
 their earlier evidence; this snapshot updates local verification only.
 
@@ -52,11 +52,9 @@ their earlier evidence; this snapshot updates local verification only.
   `server.mjs` returned 404. All five recorded hashes resolved to their documented
   outcomes through public testnet RPC; explicit archival lookup and both endpoints'
   CORS preflights succeeded. Headless Chromium did not complete a render; stopped
-  without a screenshot. Hosted HTTPS/browser verification remains planned.
-- Both workflows parse as YAML. Pages is manual-dispatch only. Verification CI is
-  available but has not run; nothing was pushed, published or deployed.
+  without a screenshot. (At that time hosted HTTPS/browser verification was still planned; it is now done, see row 10.)
+- Both workflows parse as YAML. Pages is manual-dispatch only. Verification CI had not run yet; this local verification run did not push, publish, or deploy changes.
 
 Contract sources and Rust
-manifests/toolchain pins are unchanged from `938b272`. Overall verification remains
-**incomplete** while the sandbox is skipped; historical x86_64 results are not
-substituted for this commit's missing execution evidence.
+manifests/toolchain pins are unchanged from `938b272`. That local run was
+**incomplete** because the sandbox was skipped; the complete current evidence is the public CI run above.
