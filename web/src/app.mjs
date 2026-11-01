@@ -78,6 +78,7 @@ function tick() {
 }
 
 async function refresh() {
+  if (!client) return; // no valid configuration yet: the form error stays visible until Apply succeeds
   const token = requests.next();
   document.body.classList.add('is-loading');
   try {
@@ -177,22 +178,33 @@ function reinspectProvisional() {
 }
 
 async function inspectList(text) {
+  if (!client) { $('tx-hint').textContent = 'Fix the configuration under "Watching" first.'; return; }
   const items = parseTxList(text, isTxHash, isAccountId);
   $('tx-hint').textContent = items.length ? '' : 'Enter a transaction hash (optionally hash@signer).';
   // Oldest first so the newest ends up on top of the list; a repeat hash is looked up again.
   for (const { hash, sender } of items.reverse()) await inspect(hash, sender);
 }
 
+// ?tx= is looked up once, after the first valid configuration (initial load or a corrected form).
+let initialTx = params.get('tx');
+function lookUpInitialTx() {
+  if (!initialTx) return;
+  const text = initialTx;
+  initialTx = null;
+  inspectList(text);
+}
+
 function init() {
   $('contract').value = config.contract;
   $('agent').value = config.agent;
   $('rpc').value = config.rpc;
-  if (!applyConfig(config, { pushUrl: false })) return;
-  render();
 
+  // Handlers first: an invalid ?contract=/?agent=/?rpc= must still be correctable from the form.
   $('config').addEventListener('submit', (e) => {
     e.preventDefault();
-    if (applyConfig({ contract: $('contract').value.trim(), agent: $('agent').value.trim(), rpc: $('rpc').value.trim() })) refresh();
+    if (applyConfig({ contract: $('contract').value.trim(), agent: $('agent').value.trim(), rpc: $('rpc').value.trim() })) {
+      refresh().then(lookUpInitialTx);
+    }
   });
   $('refresh').addEventListener('click', refresh);
   $('auto').addEventListener('change', schedule);
@@ -201,10 +213,12 @@ function init() {
   for (const button of document.querySelectorAll('[data-example]')) {
     button.addEventListener('click', () => inspectList(button.dataset.example));
   }
-
-  refresh().then(() => { if (params.get('tx')) inspectList(params.get('tx')); });
   schedule();
   setInterval(tick, 5_000); // relative times only; the DOM is rebuilt only when data changes
+
+  if (!applyConfig(config, { pushUrl: false })) { render(); return; }
+  render();
+  refresh().then(lookUpInitialTx);
 }
 
 init();
