@@ -77,9 +77,17 @@ function tick() {
   updateStamp();
 }
 
+// An automatic tick never supersedes a refresh still in flight (it may be retrying a dropped
+// request); a manual refresh or a configuration change still does.
+let refreshing = false;
+function autoRefresh() {
+  if (!refreshing) refresh();
+}
+
 async function refresh() {
   if (!client) return; // no valid configuration yet: the form error stays visible until Apply succeeds
   const token = requests.next();
+  refreshing = true;
   document.body.classList.add('is-loading');
   try {
     const next = await loadSnapshot(client, config);
@@ -95,13 +103,16 @@ async function refresh() {
     if (!requests.isCurrent(token)) return;
     showError(`Could not read the guard: ${error instanceof Error ? error.message : 'unknown error'}`);
   } finally {
-    if (requests.isCurrent(token)) document.body.classList.remove('is-loading');
+    if (requests.isCurrent(token)) {
+      refreshing = false;
+      document.body.classList.remove('is-loading');
+    }
   }
 }
 
 function schedule() {
   clearInterval(timer);
-  if ($('auto').checked) timer = setInterval(refresh, REFRESH_MS);
+  if ($('auto').checked) timer = setInterval(autoRefresh, REFRESH_MS);
 }
 
 function applyConfig(next, { pushUrl = true } = {}) {
@@ -114,6 +125,7 @@ function applyConfig(next, { pushUrl = true } = {}) {
   if (changed) {
     // Never show one guard's data under another guard's label.
     requests.next();
+    refreshing = false; // the superseded refresh can no longer publish or clear the flag
     snapshot = null;
     snapshotKey = '';
     inspected.clear();
